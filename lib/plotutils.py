@@ -294,4 +294,5 @@ def mk_legend(placement: str, nrows: int, handles: list,
                      fontsize=fsize, bbox_to_anchor=bb2a,
                      framealpha=falpha)
     if location == 'best':
-        leg.set_draggable(True)
+        if hasattr(leg, 'draggable'):
+            leg.set_draggable(True)
