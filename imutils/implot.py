@@ -118,8 +118,7 @@ def parse_args():
     parser.add_argument("--steps", action='store_const', required=False,
                         const='steps-mid', default='default',
                         help='Step style: \'steps-mid\' best for short lines')
-    parser.add_argument("--dpi", default=166, type=int,
-                        help="set screen dpi, default: %(default)s")
+    parser.add_argument("--dpi", type=int, help="set screen dpi")
     parser.add_argument("--debug", action='store_true',
                         help="print additional debugging messages")
     parser.add_argument("--nomemmap", action='store_true', default=False,
@@ -137,16 +136,16 @@ def main():
 
     # update/override some critical parameters
     plt.style.use(optlist.style)
-    plt.rcParams.update({'legend.handlelength': 0.6})
-    plt.rcParams.update({'font.size': 6})
-    plt.rcParams.update({'xtick.labelsize': 6})
-    plt.rcParams.update({'ytick.labelsize': 6})
-    plt.rcParams.update({'lines.markersize': 2})
+    pu.update_rcparams()
+    # plt.rcParams.update({'legend.handlelength': 0.6})
+    # plt.rcParams.update({'font.size': 6})
+    # plt.rcParams.update({'xtick.labelsize': 6})
+    # plt.rcParams.update({'ytick.labelsize': 6})
+    # plt.rcParams.update({'lines.markersize': 2})
 
     # layout of plot view for array of plots:
     #     landscape has columns > rows
     #     portrait has more rows > columns w/room for legend
-    plt.style.use(optlist.style)
     # plt.rcParams['figure.constrained_layout.use'] = True
 
     fig, axes = pu.get_fig_and_axis(len(optlist.fitsfile), optlist.layout,
@@ -197,10 +196,10 @@ def main():
         title_str = re.sub(r"^.*/(.*)$", r"\1", optlist.fitsfile[findex])
         title_str = re.sub(r"^(.*)\.fits?(\.fz)*$", r"\1", title_str)
         if npcols < 3:
-            title_nchars = 36
+            title_nchars = 44
             title_fontsize = 'x-small'
         else:
-            title_nchars = 28
+            title_nchars = 32
             title_fontsize = 'xx-small'
         if len(title_str) > title_nchars:
             title_str = "{}...".format(title_str[:title_nchars])
@@ -213,8 +212,12 @@ def main():
                 ax.plot([], [], ' ', label=title_str)
         elif nfiles == 1 and not optlist.title:
             ax.set_title(title_str, fontsize=title_fontsize)
+            if optlist.style == 'ggplot':
+                ax.plot([], [])  # skip the first color
         else:
             ax.set_title(title_str, fontsize=title_fontsize)
+            if optlist.style == 'ggplot':
+                ax.plot([], [])  # skip the first color
 
         # y label depends on offset type
         if not optlist.offset:

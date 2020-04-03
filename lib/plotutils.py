@@ -8,6 +8,7 @@ import math
 from astropy import stats
 from astropy.io import fits
 import numpy as np
+import matplotlib as mpl
 import matplotlib.pyplot as plt
 
 # local imports
@@ -15,7 +16,40 @@ import imutils as iu
 import mutils as mu
 
 
-def get_fig_and_axis(nax, layout, overlay, sharex=False, sharey=False, xdpi=166):
+def update_rcparams():
+    """
+    Account for v2.x vs. v3.x differences
+    """
+    vers = mpl.__version__
+    if vers.startswith('3.1'):
+        # update/override some critical parameters
+        logging.debug('found matplotlib version %s', vers)
+        plt.rcParams.update({'legend.handlelength': 0.6})
+        # plt.rcParams.update({'font.size': 6})
+        # plt.rcParams.update({'xtick.labelsize': 6})
+        # plt.rcParams.update({'ytick.labelsize': 6})
+        plt.rcParams.update({'lines.markersize': 2})
+        plt.rcParams.update({'figure.dpi': 84})
+    elif vers.startswith('2'):
+        logging.debug('found matplotlib version %s', vers)
+        plt.rcParams.update({'legend.handlelength': 0.6})
+        # plt.rcParams.update({'font.size': 6})
+        # plt.rcParams.update({'xtick.labelsize': 6})
+        # plt.rcParams.update({'ytick.labelsize': 6})
+        plt.rcParams.update({'lines.markersize': 2})
+        plt.rcParams.update({'figure.dpi': 166})
+    else:
+        logging.debug('found matplotlib version %s', vers)
+        plt.rcParams.update({'legend.handlelength': 0.6})
+        # plt.rcParams.update({'font.size': 6})
+        # plt.rcParams.update({'xtick.labelsize': 6})
+        # plt.rcParams.update({'ytick.labelsize': 6})
+        plt.rcParams.update({'lines.markersize': 2})
+        plt.rcParams.update({'figure.dpi': 166})
+
+
+def get_fig_and_axis(nax, layout, overlay, sharex=False,
+                     sharey=False, xdpi=None):
     """
     Create the figure and subplot axes based on number of axes requested,
     and options.
@@ -54,8 +88,8 @@ def get_fig_and_axis(nax, layout, overlay, sharex=False, sharey=False, xdpi=166)
         if nprows < npcols:  # landscape, make x-dimen bigger
             if fsize[1] > fsize[0]:
                 fsize[0], fsize[1] = fsize[1], fsize[0]
-            if fsize[0] < 1.6 * fsize[1]:
-                fsize[0] = 1.6 * fsize[1]
+            if fsize[0] < 1.2 * fsize[1]:
+                fsize[0] = 1.2 * fsize[1]
 
     plt.rcParams.update({'figure.figsize': fsize})
     logging.debug('subplots layout for nax=%s is nprows=%s x npcols=%s',
@@ -194,6 +228,8 @@ def line_plot(slice_spec: tuple, pix: np.ndarray,
     s = x if map_axis == 0 else y
     slabel = "{}:[{}:{},{}:{}]".format(hduname, x[0], x[-1], y[0], y[-1])
     pax.plot(s, line1, drawstyle="{}".format(steps), label=slabel)
+    pax.xaxis.set_tick_params(labelsize='x-small')
+    pax.yaxis.set_tick_params(labelsize='x-small')
 
 
 def rotateTickLabels(pax, rotation, which, mode='anchor', ha='right'):
@@ -249,7 +285,7 @@ def mk_legend(placement: str, nrows: int, handles: list,
     pax:       axis to use
     """
     logging.debug('mk_legend():')
-    trnc = int(50 / nrows)  # max before truncation
+    trnc = int(40 / nrows)  # max before truncation
     if len(handles) < 5:  # place in the box
         location = 'best'
         fsize = 'x-small'
@@ -262,7 +298,7 @@ def mk_legend(placement: str, nrows: int, handles: list,
         bb2a = (1, 1)
     else:                    # to right, truncate legend
         location = 'upper left'
-        fsize = 'x-small'
+        fsize = 'xx-small'
         falpha = None
         bb2a = (1, 1)
         if len(handles) >= trnc:

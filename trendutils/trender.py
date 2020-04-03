@@ -37,7 +37,8 @@ if sys.version_info[0] < 3 or sys.version_info[1] < 7:
 def parse_args():
     """handle command line"""
     style_list = ['default'] + sorted(
-        ['fast', 'ggplot', 'seaborn-poster', 'seaborn-notebook'])
+        ['fast', 'ggplot', 'seaborn-poster', 'seaborn-notebook',
+         'seaborn-darkgrid', 'fivethirtyeight'])
     parser = argparse.ArgumentParser(
         formatter_class=argparse.RawDescriptionHelpFormatter,
         description=textwrap.dedent('''
@@ -130,8 +131,7 @@ def parse_args():
                         choices=style_list)
     parser.add_argument("--layout", default='portrait',
                         help="\"landscape\"|\"portrait\"|\"nxm\"")
-    parser.add_argument("--dpi", type=int, default=166,
-                        help="set screen dpi, default: %(default)s")
+    parser.add_argument("--dpi", type=int, help="set screen dpi")
     #
     # Time interval specifications
     #
@@ -618,11 +618,12 @@ def main():
 
         # update/override some critical parameters
         plt.style.use(optlist.style)
-        plt.rcParams.update({'legend.handlelength': 0.6})
-        #plt.rcParams.update({'font.size': 6})
-        #plt.rcParams.update({'xtick.labelsize': 6})
-        #plt.rcParams.update({'ytick.labelsize': 6})
-        plt.rcParams.update({'lines.markersize': 3})
+        pu.update_rcparams()
+        # plt.rcParams.update({'legend.handlelength': 0.6})
+        # plt.rcParams.update({'font.size': 6})
+        # plt.rcParams.update({'xtick.labelsize': 6})
+        # plt.rcParams.update({'ytick.labelsize': 6})
+        # plt.rcParams.update({'lines.markersize': 2})
 
         # figure out how many distinct plots and windows to make
         # subplots layout and shape are determined
@@ -752,6 +753,8 @@ def main():
                 ax.get_yaxis().set_visible(True)
                 ax.xaxis.set_tick_params(labelsize='small')
                 ax.yaxis.set_tick_params(labelsize='small')
+                if optlist.style == 'ggplot':
+                    ax.plot([], [])  # consumes the first color
 
                 # mask the tstamps outside of the interval
                 #
