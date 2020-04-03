@@ -751,8 +751,8 @@ def main():
                 ax.set_frame_on(True)
                 ax.get_xaxis().set_visible(True)
                 ax.get_yaxis().set_visible(True)
-                ax.xaxis.set_tick_params(labelsize='small')
-                ax.yaxis.set_tick_params(labelsize='small')
+                ax.xaxis.set_tick_params(labelsize='x-small')
+                ax.yaxis.set_tick_params(labelsize='x-small')
                 if optlist.style == 'ggplot':
                     ax.plot([], [])  # consumes the first color
 
