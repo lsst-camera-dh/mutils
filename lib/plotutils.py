@@ -232,45 +232,6 @@ def line_plot(slice_spec: tuple, pix: np.ndarray,
     pax.yaxis.set_tick_params(labelsize='x-small')
 
 
-def rotateTickLabels(pax, rotation, which, mode='anchor', ha='right'):
-    """
-    Rotates the ticklabels of a matplotlib Axes
-    Parameters
-    ----------
-    pax : matplotlib Axes
-        The Axes object that will be modified.
-    rotation : float
-        The amount of rotation, in degrees, to be applied to the labels.
-    which : string
-        The axis whose ticklabels will be rotated. Valid values are 'x',
-        'y', or 'both'.
-    mode: string, optional
-        The rotation point for the ticklabels. Highly recommended to use
-        the default value ('anchor').
-    ha : string
-        The horizontal alignment of the ticks. Again, recommended to use
-        the default ('right').
-    Returns
-    -------
-    None
-    """
-
-    if which == 'both':
-        rotateTickLabels(pax, rotation, 'x', mode=mode, ha=ha)
-        rotateTickLabels(pax, rotation, 'y', mode=mode, ha=ha)
-    else:
-        if which == 'x':
-            axis = pax.xaxis
-
-        elif which == 'y':
-            axis = pax.yaxis
-
-        for t in axis.get_ticklabels():
-            t.set_horizontalalignment(ha)
-            t.set_rotation(rotation)
-            t.set_rotation_mode(mode)
-
-
 def mk_legend(placement: str, nrows: int, handles: list,
               labels: list, pax: plt.axes):
     """
