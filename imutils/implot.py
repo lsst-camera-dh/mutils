@@ -118,6 +118,8 @@ def parse_args():
     parser.add_argument("--steps", action='store_const', required=False,
                         const='steps-mid', default='default',
                         help='Step style: \'steps-mid\' best for short lines')
+    parser.add_argument("--dpi", default=166, type=int,
+                        help="set screen dpi, default: %(default)s")
     parser.add_argument("--debug", action='store_true',
                         help="print additional debugging messages")
     parser.add_argument("--nomemmap", action='store_true', default=False,
@@ -149,7 +151,7 @@ def main():
 
     fig, axes = pu.get_fig_and_axis(len(optlist.fitsfile), optlist.layout,
                                     optlist.overlay, optlist.sharex,
-                                    optlist.sharey)
+                                    optlist.sharey, optlist.dpi)
 
     fsize = fig.get_size_inches()
     logging.debug('width= %5.2f, height= %5.2f', fsize[0], fsize[1])

@@ -130,6 +130,8 @@ def parse_args():
                         choices=style_list)
     parser.add_argument("--layout", default='portrait',
                         help="\"landscape\"|\"portrait\"|\"nxm\"")
+    parser.add_argument("--dpi", type=int, default=166,
+                        help="set screen dpi, default: %(default)s")
     #
     # Time interval specifications
     #
@@ -617,10 +619,10 @@ def main():
         # update/override some critical parameters
         plt.style.use(optlist.style)
         plt.rcParams.update({'legend.handlelength': 0.6})
-        plt.rcParams.update({'font.size': 6})
-        plt.rcParams.update({'xtick.labelsize': 6})
-        plt.rcParams.update({'ytick.labelsize': 6})
-        plt.rcParams.update({'lines.markersize': 2})
+        #plt.rcParams.update({'font.size': 6})
+        #plt.rcParams.update({'xtick.labelsize': 6})
+        #plt.rcParams.update({'ytick.labelsize': 6})
+        plt.rcParams.update({'lines.markersize': 3})
 
         # figure out how many distinct plots and windows to make
         # subplots layout and shape are determined
@@ -696,7 +698,7 @@ def main():
             sharex = optlist.sharex
 
         fig, axes = pu.get_fig_and_axis(nax, optlist.layout, optlist.overlay,
-                                        sharex, False)
+                                        sharex, False, optlist.dpi)
         logging.debug('len(axes)=%d', len(axes))
         logging.debug('axes.shape= %s', axes.shape)
         nrows, ncols = (axes.shape[0], axes.shape[1])
@@ -748,8 +750,8 @@ def main():
                 ax.set_frame_on(True)
                 ax.get_xaxis().set_visible(True)
                 ax.get_yaxis().set_visible(True)
-                ax.xaxis.set_tick_params(labelsize='x-small')
-                ax.yaxis.set_tick_params(labelsize='x-small')
+                ax.xaxis.set_tick_params(labelsize='small')
+                ax.yaxis.set_tick_params(labelsize='small')
 
                 # mask the tstamps outside of the interval
                 #
@@ -795,7 +797,7 @@ def main():
                                     xycoords='axes fraction',
                                     horizontalalignment='left',
                                     verticalalignment='bottom',
-                                    fontsize='xx-small')
+                                    fontsize='small')
                         anno_string = "{} (tstart)".format(
                             dt.datetime.fromtimestamp(
                                 intervals[idx][0]/1000,
@@ -805,7 +807,7 @@ def main():
                                     xycoords='axes fraction',
                                     horizontalalignment='left',
                                     verticalalignment='top',
-                                    fontsize='xx-small')
+                                    fontsize='small')
                         continue
 
                     #   # normalization and shift
@@ -824,7 +826,7 @@ def main():
 
                     # set x,y-axis label format
                     if not ax.get_ylabel():
-                        ax.set_ylabel("{}".format(unit), size='x-small')
+                        ax.set_ylabel("{}".format(unit), size='small')
                         ax.ticklabel_format(
                             axis='y', style='sci', scilimits=(-3, 5))
                     if not ax.get_xlabel():
@@ -842,7 +844,7 @@ def main():
                                     xlabel_str, optlist.timebins)
                             logging.debug('ax.set_xlabel(%s)', xlabel_str)
                             ax.set_xlabel("{}".format(xlabel_str),
-                                          position=(0., 1e6), size='x-small',
+                                          position=(0., 1e6), size='small',
                                           horizontalalignment='left')
 
                             ax.tick_params(axis='x', labelbottom=True,
@@ -865,7 +867,7 @@ def main():
                     mcolor = line[0].get_color()
                     logging.debug("mcolor= %s", mcolor)
                     if not ax.get_ylabel():
-                        ax.set_ylabel("{}".format(unit), size='x-small')
+                        ax.set_ylabel("{}".format(unit), size='small')
                         ax.ticklabel_format(
                             axis='y', style='sci', scilimits=(-3, 5))
                     # xlabel for this axis
@@ -894,7 +896,7 @@ def main():
                                 xlabel_str = "{}\n{}".format(xlabel_str,
                                                              xlabel_last)
                             ax.set_xlabel("{}".format(xlabel_str),
-                                          fontsize='x-small',
+                                          fontsize='small',
                                           position=(0., 1e6),
                                           horizontalalignment='left')
                             #

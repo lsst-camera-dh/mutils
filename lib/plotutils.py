@@ -15,7 +15,7 @@ import imutils as iu
 import mutils as mu
 
 
-def get_fig_and_axis(nax, layout, overlay, sharex=False, sharey=False):
+def get_fig_and_axis(nax, layout, overlay, sharex=False, sharey=False, xdpi=166):
     """
     Create the figure and subplot axes based on number of axes requested,
     and options.
@@ -62,7 +62,7 @@ def get_fig_and_axis(nax, layout, overlay, sharex=False, sharey=False):
                   nax, nprows, npcols)
 
     fig, axes = plt.subplots(nprows, npcols, sharex=sharex, sharey=sharey,
-                             squeeze=False)
+                             squeeze=False, dpi=xdpi)
     return (fig, axes)
 
 
@@ -252,7 +252,7 @@ def mk_legend(placement: str, nrows: int, handles: list,
     trnc = int(50 / nrows)  # max before truncation
     if len(handles) < 5:  # place in the box
         location = 'best'
-        fsize = 'xx-small'
+        fsize = 'x-small'
         falpha = 0.5
         bb2a = None
     elif len(handles) < trnc:  # place to right, small
@@ -262,7 +262,7 @@ def mk_legend(placement: str, nrows: int, handles: list,
         bb2a = (1, 1)
     else:                    # to right, truncate legend
         location = 'upper left'
-        fsize = 'xx-small'
+        fsize = 'x-small'
         falpha = None
         bb2a = (1, 1)
         if len(handles) >= trnc:
@@ -280,11 +280,12 @@ def mk_legend(placement: str, nrows: int, handles: list,
         falpha = 0.4
     elif placement.startswith('outs'):
         location = 'upper left'
-        fsize = 'xx-small'
+        fsize = 'x-small'
         falpha = None
         bb2a = (1, 1)
     else:
         return
+
     logging.debug('    placement:%s, nrows:%d', placement, nrows)
     logging.debug('    len(handles):%d, len(labels): %d)',
                   len(handles), len(labels))
@@ -294,5 +295,7 @@ def mk_legend(placement: str, nrows: int, handles: list,
                      fontsize=fsize, bbox_to_anchor=bb2a,
                      framealpha=falpha)
     if location == 'best':
-        if hasattr(leg, 'draggable'):
+        try:
             leg.set_draggable(True)
+        except AttributeError:
+            pass
