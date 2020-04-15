@@ -53,8 +53,8 @@ def main():
     a glob pattern for a given input list of files/paths
     """
     optlist = parse_args()
-    iu.init_logging(optlist.debug)
-    iu.init_warnings()
+    mu.init_logging(optlist.debug)
+    mu.init_warnings()
     filenames = []
     for fname in optlist.file:
         # fname = re.sub(r"^.*/(.*)$", r"\1", fname)

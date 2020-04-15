@@ -15,6 +15,7 @@ sys.path.insert(0, modpath)
 #  local imports
 try:
     import imutils as iu
+    import  mutils as mu
 except ImportError as e:
     logging.error('Import failed: %s', e)
     exit(1)
@@ -43,8 +44,8 @@ def parse_args():
 def main():
     """print out headers"""
     optlist = parse_args()
-    iu.init_logging(optlist.debug)
-    iu.init_warnings()
+    mu.init_logging(optlist.debug)
+    mu.init_warnings()
 
     # processing -- loop over files
     for ffile in optlist.fitsfile:

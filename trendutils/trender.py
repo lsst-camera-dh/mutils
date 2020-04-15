@@ -850,8 +850,11 @@ def main():
                                           position=(0., 1e6), size='small',
                                           horizontalalignment='left')
 
-                            ax.tick_params(axis='x', labelbottom=True,
-                                           labelrotation=20.0)
+                            ax.tick_params(axis='x', labelbottom=True)
+                            # rotate the labels
+                            for xtick in ax.get_xticklabels():
+                                xtick.set_rotation(30)
+                                xtick.set_horizontalalignment("right")
                         else:
                             ax.tick_params(axis='x', labelbottom=False)
                 else:  # overlay start or stop

@@ -94,8 +94,8 @@ def parse_args():
 def main():
     """main logic:"""
     optlist = parse_args()
-    iu.init_logging(optlist.debug)
-    iu.init_warnings()
+    mu.init_logging(optlist.debug)
+    mu.init_warnings()
     verbose = optlist.verbose
 
     # convert iraf style ROI to slice format

@@ -21,6 +21,7 @@ sys.path.insert(0, modpath)
 #  local imports
 try:
     import imutils as iu
+    import mutils as mu
 except ImportError as e:
     logging.error('Import failed: %s', e)
     sys.exit(1)
@@ -75,8 +76,8 @@ def parse_args():
 def main():
     """main logic:"""
     optlist = parse_args()
-    iu.init_logging(optlist.debug)
-    iu.init_warnings()
+    mu.init_logging(optlist.debug)
+    mu.init_warnings()
 
     # evaluate operands as either a filename, float, floats or error
     verify_args(optlist)

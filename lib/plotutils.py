@@ -277,7 +277,7 @@ def mk_legend(placement: str, nrows: int, handles: list,
         falpha = 0.4
     elif placement.startswith('outs'):
         location = 'upper left'
-        fsize = 'x-small'
+        fsize = 'xx-small'
         falpha = None
         bb2a = (1, 1)
     else:
