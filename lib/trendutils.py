@@ -20,7 +20,7 @@ from timezone_info import timezone_abbr
 trendnetre = r"134\.79\.[0-9]*\.[0-9]*"
 default_port = "8080"
 default_trending_server = "lsst-mcm.slac.stanford.edu"
-tz_trending = 'America/Los_Angeles'
+tz_trending = "America/Los_Angeles"
 
 # set up known sites for CCS restful servers
 # atsccs1.cp.lsst.org has address 139.229.170.33
@@ -29,31 +29,37 @@ tz_trending = 'America/Los_Angeles'
 #
 sites = dict()
 #
-sites['slac'] = dict()
-sites['slac']['netregex'] = r"134\.79\.[0-9]*\.[0-9]*"
-sites['slac']['port'] = 8080
-sites['slac']['server'] = 'lsst-mcm.slac.stanford.edu'
-sites['slac']['tz'] = 'America/Los_Angeles'
+sites["slac"] = dict()
+sites["slac"]["netregex"] = r"134\.79\.[0-9]*\.[0-9]*"
+sites["slac"]["port"] = 8080
+sites["slac"]["server"] = "lsst-mcm.slac.stanford.edu"
+sites["slac"]["tz"] = "America/Los_Angeles"
 #
-sites['ats'] = dict()
-sites['ats']['netregex'] = r"139\.229\.170\.[0-9]"
-sites['ats']['port'] = 8080
-sites['ats']['server'] = 'atsccs1.cp.lsst.org'
-sites['ats']['tz'] = 'UTC'
+sites["ats"] = dict()
+sites["ats"]["netregex"] = r"139\.229\.170\.[0-9]"
+sites["ats"]["port"] = 8080
+sites["ats"]["server"] = "atsccs1.cp.lsst.org"
+sites["ats"]["tz"] = "UTC"
 #
-sites['summit'] = dict()
-sites['summit']['netregex'] = r"139\.229\.174\.[0-9]"
-sites['summit']['port'] = 8080
-sites['summit']['server'] = 'ccs-db01.cp.lsst.org'
-sites['summit']['tz'] = 'UTC'
+sites["summit"] = dict()
+sites["summit"]["netregex"] = r"139\.229\.174\.[0-9]"
+sites["summit"]["port"] = 8080
+sites["summit"]["server"] = "ccs-db01.cp.lsst.org"
+sites["summit"]["tz"] = "UTC"
+#
+sites["comcam"] = dict()
+sites["comcam"]["netregex"] = r"139\.229\.150\.[0-9]"
+sites["comcam"]["port"] = 8080
+sites["comcam"]["server"] = "comcam-db01.ls.lsst.org"
+sites["comcam"]["tz"] = "UTC"
 #
 # this should be last and matches anything else
 # requires a local db or ssh tunnel to the actual server
-sites['localhost'] = dict()
-sites['localhost']['netregex'] = r"[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+"
-sites['localhost']['port'] = 8080
-sites['localhost']['server'] = 'localhost'
-sites['localhost']['tz'] = gettz().tzname(datetime.now())
+sites["localhost"] = dict()
+sites["localhost"]["netregex"] = r"[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+"
+sites["localhost"]["port"] = 8080
+sites["localhost"]["server"] = "localhost"
+sites["localhost"]["tz"] = gettz().tzname(datetime.now())
 
 
 def print_sites():
@@ -96,7 +102,7 @@ def get_all_channels(maxidle=-1):
     else:
         listpath = "{}{:s}".format(listpathroot, "-1")
     url = "http://{}:{}{}".format(trending_server, trending_port, listpath)
-    logging.debug('url=%s', url)
+    logging.debug("url=%s", url)
 
     # creating HTTP response object from given url
     resp = requests.get(url)
@@ -112,17 +118,17 @@ def parse_datestr(datestr=None):
     time in seconds since the epoch (1970) UTC
     """
     if datestr:  # parse the date string almost any format
-        logging.debug('parse_datestr(datestr=%s)', datestr)
+        logging.debug("parse_datestr(datestr=%s)", datestr)
         try:
             dt = dp.parse(datestr, tzinfos=timezone_abbr)
         except ValueError as e:
-            logging.error('ValueError: %s', e)
-            logging.error('could not parse the datestring')
+            logging.error("ValueError: %s", e)
+            logging.error("could not parse the datestring")
             return None
         if dt.tzinfo is None:  # make it tz aware
             dt = dt.astimezone(gettz())  # assume local
     else:
-        dt = datetime.now(gettz())       # again local
+        dt = datetime.now(gettz())  # again local
 
     return (dt - datetime(1970, 1, 1, tzinfo=tzutc())).total_seconds()
 
@@ -132,14 +138,18 @@ def get_time_interval(startstr, stopstr, duration=None):
     """
     if startstr:
         t1 = parse_datestr(startstr)
-        logging.debug('t1 as trending db local time: %s',
-                      datetime.fromtimestamp(t1, gettz(tz_trending)))
+        logging.debug(
+            "t1 as trending db local time: %s",
+            datetime.fromtimestamp(t1, gettz(tz_trending)),
+        )
         t1 *= 1000
 
     if stopstr:
         t2 = parse_datestr(stopstr)
-        logging.debug('t2 as trending db local time: %s',
-                      datetime.fromtimestamp(t2, gettz(tz_trending)))
+        logging.debug(
+            "t2 as trending db local time: %s",
+            datetime.fromtimestamp(t2, gettz(tz_trending)),
+        )
         t2 *= 1000
 
     if not duration:
@@ -150,16 +160,16 @@ def get_time_interval(startstr, stopstr, duration=None):
     # cases for t1, t2
     if startstr and stopstr:
         if t1 > t2:
-            logging.error('starttime must be earlier than stop')
+            logging.error("starttime must be earlier than stop")
             t1 = None
             t2 = None
     elif startstr and not stopstr:  # get durations interval
-        t2 = t1 + duration*1000
+        t2 = t1 + duration * 1000
     elif not startstr and stopstr:  # get durations interval
-        t1 = t2 - duration*1000
+        t1 = t2 - duration * 1000
     elif not startstr and not stopstr:
         t2 = int(time.time()) * 1000
-        t1 = t2 - duration*1000
+        t1 = t2 - duration * 1000
     else:
         t1 = t2 = None
 
@@ -179,37 +189,47 @@ def get_trending_server():
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     s.connect(("8.8.8.8", 80))  # connect to google dns server
     res = None
-    site = ''
+    site = ""
     for site in sites:  # break if match
-        logging.debug('site = %s', site)
-        res = re.search(sites[site]['netregex'], s.getsockname()[0])
-        logging.debug('res = re.search(%s, %s)', sites[site]['netregex'],
-                      s.getsockname()[0])
-        logging.debug('res = %s', res)
+        logging.debug("site = %s", site)
+        res = re.search(sites[site]["netregex"], s.getsockname()[0])
+        logging.debug(
+            "res = re.search(%s, %s)", sites[site]["netregex"], s.getsockname()[0]
+        )
+        logging.debug("res = %s", res)
         if res:
             break
     s.close()
 
     if res:
-        trending_server = sites[site]['server']
-        trending_port = sites[site]['port']
-        trending_tz = sites[site]['tz']
-        logging.debug('using site: %s: trending server: %s:%s tz: %s',
-                      site, trending_server, trending_port, trending_tz)
+        trending_server = sites[site]["server"]
+        trending_port = sites[site]["port"]
+        trending_tz = sites[site]["tz"]
+        logging.debug(
+            "using site: %s: trending server: %s:%s tz: %s",
+            site,
+            trending_server,
+            trending_port,
+            trending_tz,
+        )
     else:
-        trending_server = sites['localhost']['server']
-        trending_port = sites['localhost']['port']
-        trending_tz = sites['localhost']['tz']
-        logging.debug('using site: %s: trending server: %s:%s tz: %s',
-                      site, trending_server, trending_port, trending_tz)
+        trending_server = sites["localhost"]["server"]
+        trending_port = sites["localhost"]["port"]
+        trending_tz = sites["localhost"]["tz"]
+        logging.debug(
+            "using site: %s: trending server: %s:%s tz: %s",
+            site,
+            trending_server,
+            trending_port,
+            trending_tz,
+        )
     # test connection to trending server, just get head to verify
     #
     try:
         requests.head("http://{}:{}".format(trending_server, trending_port))
     except requests.ConnectionError as e:
-        logging.error('ConnectionError: %s', e)
-        logging.error('check status connection to trending server: %s',
-                      trending_server)
+        logging.error("ConnectionError: %s", e)
+        logging.error("check status connection to trending server: %s", trending_server)
         return None
     return trending_server, trending_port, trending_tz
 
@@ -223,23 +243,22 @@ def geturi(uri):
         try:
             resp = requests.head(uri)
         except requests.ConnectionError as e:
-            logging.error('ConnectionError: %s', e)
+            logging.error("ConnectionError: %s", e)
             return None
         if resp.status_code != 200:
-            logging.error(
-                'error: invalid response %s from Server', resp.status_code)
+            logging.error("error: invalid response %s from Server", resp.status_code)
             return None
         resp = requests.get(uri)
         return resp.content
 
     #  it may be a file, try to open as a path
     if not os.path.exists(uri):
-        logging.error('%s is not a path', uri)
+        logging.error("%s is not a path", uri)
         return None
     try:
-        xmlfile = open(uri, mode='rb')
+        xmlfile = open(uri, mode="rb")
     except IOError as e:
-        logging.error('I/O error(%s): %s', e.errno, e.strerror)
+        logging.error("I/O error(%s): %s", e.errno, e.strerror)
         return None
     xmlstring = xmlfile.read()
     xmlfile.close()
@@ -252,29 +271,29 @@ def print_channel_content(xmlcontent, ssnames):
     """
     root = etree.fromstring(xmlcontent)
     for ssname in ssnames:
-        for dchan in root.iterfind('datachannel'):
+        for dchan in root.iterfind("datachannel"):
             channel_match = 0
-            for md in dchan.iterfind('metadata'):
-                if md.attrib.get('name') == 'subsystem':
-                    if md.attrib.get('value') == ssname:
+            for md in dchan.iterfind("metadata"):
+                if md.attrib.get("name") == "subsystem":
+                    if md.attrib.get("value") == ssname:
                         channel_match += 1
-                if md.attrib.get('name') == 'type':
-                    if md.attrib.get('value') == 'trending':
+                if md.attrib.get("name") == "type":
+                    if md.attrib.get("value") == "trending":
                         channel_match += 1
 
             if channel_match != 2:
                 continue
             parr = []
-            for pp in dchan.iterfind('path'):
-                for pelem in pp.iterfind('pathelement'):
+            for pp in dchan.iterfind("path"):
+                for pelem in pp.iterfind("pathelement"):
                     if not parr:
                         parr.append("{}".format(pelem.text))
                     else:
                         parr.append("/{}".format(pelem.text))
 
-            for eid in dchan.iterfind('id'):
+            for eid in dchan.iterfind("id"):
                 parr.append("  {}".format(eid.text))
-            print("1 {}".format(''.join(parr)))
+            print("1 {}".format("".join(parr)))
 
 
 def print_channel_structure(xmlcontent):
@@ -285,34 +304,38 @@ def print_channel_structure(xmlcontent):
     raw_tree = etree.ElementTree(xml_root)
     nice_tree = collections.OrderedDict()
     for tag in xml_root.iter():
-        path = re.sub(r'\[[0-9]+\]', '', raw_tree.getpath(tag))
+        path = re.sub(r"\[[0-9]+\]", "", raw_tree.getpath(tag))
         if path not in nice_tree:
             nice_tree[path] = []
             if tag.keys():
                 nice_tree[path].extend(
-                    attrib for attrib in tag.keys()
-                    if attrib not in nice_tree[path])
+                    attrib for attrib in tag.keys() if attrib not in nice_tree[path]
+                )
                 for path, attribs in nice_tree.items():
-                    indent = int(path.count('/') - 1)
-                    print('{0}{1}: {2} [{3}]'.format(
-                        '    ' * indent, indent, path.split('/')[-1],
-                        ', '.join(attribs) if attribs else '-'))
+                    indent = int(path.count("/") - 1)
+                    print(
+                        "{0}{1}: {2} [{3}]".format(
+                            "    " * indent,
+                            indent,
+                            path.split("/")[-1],
+                            ", ".join(attribs) if attribs else "-",
+                        )
+                    )
 
 
 def update_trending_channels_xml(tstart=None, tstop=None):
     """maintain local cache of trending channels in xml file
        arg: tstart -- channels active since tstart (seconds since the epoch)
     """
-    logging.debug('update_trending_channels_xml(%s, %s)', tstart, tstop)
-    cachedir = "{}/.trender".format(os.environ.get('HOME'))
-    channel_file = "{}/.trender/listchannels.xml".format(
-        os.environ.get('HOME'))
+    logging.debug("update_trending_channels_xml(%s, %s)", tstart, tstop)
+    cachedir = "{}/.trender".format(os.environ.get("HOME"))
+    channel_file = "{}/.trender/listchannels.xml".format(os.environ.get("HOME"))
     update = True
     # check channel_file exists, get mtime, update if need be
-    if not os.path.exists(cachedir):   # make cachdir if not exist
+    if not os.path.exists(cachedir):  # make cachdir if not exist
         os.mkdir(cachedir)
-    if not os.path.isdir(cachedir):    # is not a directory
-        logging.error('%s is not a directory, exiting...', cachedir)
+    if not os.path.isdir(cachedir):  # is not a directory
+        logging.error("%s is not a directory, exiting...", cachedir)
         exit(1)
     #
     # Trigger an update based on whether the interval (tstart,tstop)
@@ -326,18 +349,20 @@ def update_trending_channels_xml(tstart=None, tstop=None):
         if not stat.S_IWUSR & mode:  # not writeable
             os.chmod(channel_file, mode | stat.S_IWUSR)
         delta = int(time.time() - statinfo.st_mtime)
-        logging.debug('existing cache age: %d (s)', delta)
+        logging.debug("existing cache age: %d (s)", delta)
 
-        chfile = open(channel_file, mode='rb')
+        chfile = open(channel_file, mode="rb")
         xmlstring = chfile.read()
         chfile.close()
         root = etree.fromstring(xmlstring)
-        active_since = root.attrib.get('activeSinceDate')
+        active_since = root.attrib.get("activeSinceDate")
         if active_since:  # parse, convert and compare to tstart
             xml_start_epoch = parse_datestr(active_since)
-            logging.debug('%s channels active_since: %s', channel_file,
-                          datetime.fromtimestamp(xml_start_epoch,
-                                                 gettz(tz_trending)))
+            logging.debug(
+                "%s channels active_since: %s",
+                channel_file,
+                datetime.fromtimestamp(xml_start_epoch, gettz(tz_trending)),
+            )
         # If tstart is inside the interval: [xml_start, last_update]
         # then can guarantee desired channels were being published
         # and hence are already in the cached file.
@@ -346,7 +371,7 @@ def update_trending_channels_xml(tstart=None, tstop=None):
                 update = False
 
     if update:
-        logging.info('updating cached channel_file...')
+        logging.info("updating cached channel_file...")
         if tstart:
             xstart = tstart - 86400  # adjust to 24h earlier
             maxidle = int(time.time() - xstart)
@@ -355,22 +380,28 @@ def update_trending_channels_xml(tstart=None, tstop=None):
             xstart = int(time.time() - maxidle)
         xmlstring = get_all_channels(maxidle)
         root = etree.fromstring(xmlstring)
-        active_since = root.attrib.get('activeSinceDate')
+        active_since = root.attrib.get("activeSinceDate")
         if not active_since:  # needed until service adds this attrib
             active_since_str = datetime.fromtimestamp(xstart).isoformat(
-                timespec='seconds')
+                timespec="seconds"
+            )
             root.set("activeSinceDate", active_since_str)
-            logging.warning('setting activeSinceDate= %s (missing in res)',
-                            active_since_str)
+            logging.warning(
+                "setting activeSinceDate= %s (missing in res)", active_since_str
+            )
         else:
-            logging.debug('activeSinceDate= %s found', active_since)
+            logging.debug("activeSinceDate= %s found", active_since)
         if xmlstring:
             tree = etree.ElementTree(root)
-            tree.write(channel_file, xml_declaration=True,
-                       encoding='UTF-8', pretty_print=False,
-                       standalone="yes")
+            tree.write(
+                channel_file,
+                xml_declaration=True,
+                encoding="UTF-8",
+                pretty_print=False,
+                standalone="yes",
+            )
     else:
-        logging.debug('returning existing channel_file=%s', channel_file)
+        logging.debug("returning existing channel_file=%s", channel_file)
     return channel_file
 
 
@@ -402,12 +433,12 @@ def long_substr(data: list) -> str:
     https://stackoverflow.com/questions/2892931/\
         longest-common-substring-from-more-than-two-strings-python#
     """
-    substr = ''
+    substr = ""
     if len(data) > 1 and len(data[0]) > 0:
         for i in range(len(data[0])):
-            for j in range(len(data[0])-i+1):
-                if j > len(substr) and all(data[0][i:i+j] in x for x in data):
-                    substr = data[0][i:i+j]
+            for j in range(len(data[0]) - i + 1):
+                if j > len(substr) and all(data[0][i : i + j] in x for x in data):
+                    substr = data[0][i : i + j]
     return substr
 
 
@@ -423,24 +454,22 @@ def query_rest_server(ts1, ts2, data_url, idstr, nbins):
     """
     s = requests.Session()
     if nbins is None:  # raw data
-        options = {'t1': int(ts1), 't2': int(ts2), 'flavor': 'raw', 'n': 1}
+        options = {"t1": int(ts1), "t2": int(ts2), "flavor": "raw", "n": 1}
     else:  # CCS stat data
-        options = {'t1': int(ts1), 't2': int(ts2),
-                   'flavor': 'stat', 'n': int(nbins)}
+        options = {"t1": int(ts1), "t2": int(ts2), "flavor": "stat", "n": int(nbins)}
     uri = "{}/data/?id={}".format(data_url, idstr)
     t_start = time.time()
     try:
         resp = s.get(uri, params=options)
     except requests.ConnectionError as e:
-        logging.error('ConnectionError: %s', e)
-        logging.error('check status of ssh tunnel to trending server')
+        logging.error("ConnectionError: %s", e)
+        logging.error("check status of ssh tunnel to trending server")
     if resp.status_code != 200:
-        logging.error('invalid response %s from Trending Server',
-                      resp.status_code)
+        logging.error("invalid response %s from Trending Server", resp.status_code)
         return None
     # logging.debug('URL=%s', resp.url)
-    logging.debug('channels: %s', re.sub(r"(id=)?([0-9]+)&*", r"\2 ", idstr))
-    logging.debug('dt=%.3f seconds', (time.time() - t_start))
+    logging.debug("channels: %s", re.sub(r"(id=)?([0-9]+)&*", r"\2 ", idstr))
+    logging.debug("dt=%.3f seconds", (time.time() - t_start))
     s.close()
     return resp.content
 
@@ -483,20 +512,23 @@ def get_unique_time_intervals(optlist):
         i = 0
         for interval in intervals:
             logging.debug(
-                'time interval[%d] (before merge): %d -- %d (%d sec)',
-                i, interval[0], interval[1],
-                (interval[1]-interval[0])/1000)
+                "time interval[%d] (before merge): %d -- %d (%d sec)",
+                i,
+                interval[0],
+                interval[1],
+                (interval[1] - interval[0]) / 1000,
+            )
             i += 1
 
     # merge overlaps to generate list of distinct intervals
     intervals.sort()  # sorts so that intervals[i][0] <= intervals[i+1][0]
     i = 1
     while i < len(intervals):  # loop over pairs of intervals
-        if intervals[i-1][1] >= intervals[i][0]:
-            intervals[i][0] = intervals[i-1][0]  # move left edge down
-            if intervals[i-1][1] > intervals[i][1]:
-                intervals[i][1] = intervals[i-1][1]  # move right edge up
-            del intervals[i-1]  # delete the 1st of the pair
+        if intervals[i - 1][1] >= intervals[i][0]:
+            intervals[i][0] = intervals[i - 1][0]  # move left edge down
+            if intervals[i - 1][1] > intervals[i][1]:
+                intervals[i][1] = intervals[i - 1][1]  # move right edge up
+            del intervals[i - 1]  # delete the 1st of the pair
         else:
             i += 1  # no overlap so move to next pair
 
@@ -504,9 +536,12 @@ def get_unique_time_intervals(optlist):
         i = 0
         for interval in intervals:
             logging.debug(
-                'time interval[%d] (after merge): %d -- %d (%d sec)',
-                i, interval[0], interval[1],
-                (interval[1]-interval[0])/1000)
+                "time interval[%d] (after merge): %d -- %d (%d sec)",
+                i,
+                interval[0],
+                interval[1],
+                (interval[1] - interval[0]) / 1000,
+            )
             i += 1
 
     return intervals
@@ -523,21 +558,21 @@ def get_channel_dict(channel_file):
       2: id [-]
       2: metadata [name, value]
     """
-    logging.debug('building full channel dictionary from %s', channel_file)
+    logging.debug("building full channel dictionary from %s", channel_file)
     cdict = dict()
     tree = etree.parse(channel_file)
     root = tree.getroot()
-    for dchan in root.iterfind('datachannel'):
-        chid = dchan.find('id').text
+    for dchan in root.iterfind("datachannel"):
+        chid = dchan.find("id").text
         # build path
         parr = []  # list to hold path elements
-        pp = dchan.find('path')
-        for pe in pp.iterfind('pathelement'):
+        pp = dchan.find("path")
+        for pe in pp.iterfind("pathelement"):
             if pe.text:  # work-around for problem xxx
                 parr.append(pe.text)
-        path = '/'.join(parr)
+        path = "/".join(parr)
         if path and chid:  # create entry in dict
             cdict[chid] = path
-    logging.debug('channel dict contains %d active channels', len(cdict))
+    logging.debug("channel dict contains %d active channels", len(cdict))
     del tree
     return cdict
