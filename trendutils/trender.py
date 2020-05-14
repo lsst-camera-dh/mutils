@@ -46,6 +46,7 @@ def parse_args():
             "fivethirtyeight",
         ]
     )
+    sites_list = tu.get_sites()
     parser = argparse.ArgumentParser(
         formatter_class=argparse.RawDescriptionHelpFormatter,
         description=textwrap.dedent(
@@ -242,6 +243,13 @@ def parse_args():
     parser.add_argument(
         "--forceupdate", action="store_true", help="Force update on cached channel file"
     )
+    parser.add_argument(
+        "--site",
+        required=False,
+        default="localhost",
+        choices=sites_list,
+        help="specify trending site",
+    )
 
     #
     #
@@ -268,6 +276,29 @@ def main():
     tmin = intervals[0][0]
     tmax = intervals[-1][1]
 
+    # get the restful server info, ugly
+    (
+        trending_site,
+        trending_server,
+        trending_port,
+        tz_trending,
+    ) = tu.get_trending_server(optlist.site)
+
+    if trending_server:
+        data_url = "http://{}:{}/rest/data/dataserver".format(
+            trending_server, trending_port
+        )
+    else:
+        logging.error("failed to contact trending server")
+        sys.exit(1)
+
+    logging.debug(
+        "trending_site: %s trending_server: %s trending_port: %d timezone: %s",
+        trending_site,
+        trending_server,
+        trending_port,
+        tz_trending,
+    )
     # from https://stackoverflow.com/questions/16710076
     # regex to split a string preserving quoted fields
     #
@@ -331,10 +362,10 @@ def main():
             logging.debug("eval pattern for matching channels...")
             if not channel_file:
                 if optlist.forceupdate:
-                    channel_file = tu.update_trending_channels_xml()
+                    channel_file = tu.update_trending_channels_xml(trending_site)
                 else:
                     channel_file = tu.update_trending_channels_xml(
-                        tmin / 1000, tmax / 1000
+                        trending_site, tmin / 1000, tmax / 1000
                     )
 
             if not chid_dict:
@@ -375,7 +406,6 @@ def main():
         # same set of channels or time intervals as requested on command line.
         # We expect to apply the intervals to the output only by taking
         # only times in the intersection.  Up to user to use valid file.
-        tz_trending = gettz().tzname(dt.datetime.now())  # localtime
         responses = []
         parser = etree.XMLParser(remove_blank_text=True)
         for ifile in optlist.input_file:
@@ -406,16 +436,6 @@ def main():
             del tree
 
     else:
-        # set up base URL for the data
-        trending_server, trending_port, tz_trending = tu.get_trending_server()
-        if trending_server:
-            data_url = "http://{}:{}/rest/data/dataserver".format(
-                trending_server, trending_port
-            )
-        else:
-            logging.error("failed to contact trending server")
-            sys.exit(1)
-
         # query the rest server query and place responses into a list
         # join the ids requested as "id0&id=id1&id=id2..." for query
         idstr = "&id=".join(id for id in oflds)
@@ -440,10 +460,19 @@ def main():
     # Main use is to save to local file, and re-use for subsequent queries
     # for statistics, plots etc. with subset of channels and time periods
     # Also useful fo debugging and verification of data
+    # need to have server info as attribs to get tz correct
     if optlist.xml:
         xml_dec = b'<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
         os.write(1, xml_dec)
-        os.write(1, b"<datas>\n")
+        datas_str = '<datas> {}="{}" {}="{}" {}="{}"\n'.format(
+            "trending_server",
+            trending_server,
+            "trending_port",
+            trending_port,
+            "tz_trending",
+            tz_trending,
+        )
+        os.write(1, str.encode(datas_str))
         for res in responses:
             root = etree.fromstring(res)
             for data in root.iter("data"):
@@ -790,11 +819,6 @@ def main():
         # update/override some critical parameters
         plt.style.use(optlist.style)
         pu.update_rcparams()
-        # plt.rcParams.update({'legend.handlelength': 0.6})
-        # plt.rcParams.update({'font.size': 6})
-        # plt.rcParams.update({'xtick.labelsize': 6})
-        # plt.rcParams.update({'ytick.labelsize': 6})
-        # plt.rcParams.update({'lines.markersize': 2})
 
         # figure out how many distinct plots and windows to make
         # subplots layout and shape are determined

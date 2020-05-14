@@ -17,10 +17,11 @@ from dateutil.tz import tzutc
 from timezone_info import timezone_abbr
 
 # constants? for lack of a better term (default to slac)
-trendnetre = r"134\.79\.[0-9]*\.[0-9]*"
-default_port = "8080"
-default_trending_server = "lsst-mcm.slac.stanford.edu"
-tz_trending = "America/Los_Angeles"
+# trendnetre = r"134\.79\.[0-9]*\.[0-9]*"
+# default_port = "8080"
+# default_trending_server = "lsst-mcm.slac.stanford.edu"
+# tz_trending = "America/Los_Angeles"
+default_req_timeout = 5  # used by requests.*
 
 # set up known sites for CCS restful servers
 # atsccs1.cp.lsst.org has address 139.229.170.33
@@ -28,6 +29,7 @@ tz_trending = "America/Los_Angeles"
 # lsst-mcm.slac.stanford.edu has address 134.79.209.38
 #
 sites = dict()
+site = None  # module scope variable
 #
 sites["slac"] = dict()
 sites["slac"]["netregex"] = r"134\.79\.[0-9]*\.[0-9]*"
@@ -62,6 +64,10 @@ sites["localhost"]["server"] = "localhost"
 sites["localhost"]["tz"] = gettz().tzname(datetime.now())
 
 
+def set_site(ssite):
+    site = ssite
+
+
 def print_sites():
     """
     print site keys
@@ -89,13 +95,13 @@ def deltamtime(pathname):
     return time.time() - os.stat(pathname)[stat.ST_MTIME]
 
 
-def get_all_channels(maxidle=-1):
+def get_all_channels(site: str, maxidle: int = -1):
     """get list of channels from the server
        maxidle recovers channels active within maxidle seconds
     """
-    trending_server, trending_port, trending_tz = get_trending_server()
-    if not trending_server:
-        return None
+    trending_server = sites[site]["server"]
+    trending_port = sites[site]["port"]
+
     listpathroot = "/rest/data/dataserver/listchannels?maxIdleSeconds="
     if maxidle:
         listpath = "{}{:d}".format(listpathroot, int(maxidle))
@@ -139,16 +145,14 @@ def get_time_interval(startstr, stopstr, duration=None):
     if startstr:
         t1 = parse_datestr(startstr)
         logging.debug(
-            "t1 as trending db local time: %s",
-            datetime.fromtimestamp(t1, gettz(tz_trending)),
+            "t1 as UTC: %s", datetime.utcfromtimestamp(t1),
         )
         t1 *= 1000
 
     if stopstr:
         t2 = parse_datestr(stopstr)
         logging.debug(
-            "t2 as trending db local time: %s",
-            datetime.fromtimestamp(t2, gettz(tz_trending)),
+            "t2 as UTC: %s", datetime.utcfromtimestamp(t2),
         )
         t2 *= 1000
 
@@ -176,7 +180,7 @@ def get_time_interval(startstr, stopstr, duration=None):
     return (t1, t2)
 
 
-def get_trending_server():
+def get_trending_server(site: str = None):
     """
     The trending server is one of several in list of sites.
     The default ip address used to access google is checked and
@@ -186,52 +190,40 @@ def get_trending_server():
 
     returns valid service or None on failure
     """
-    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    s.connect(("8.8.8.8", 80))  # connect to google dns server
-    res = None
-    site = ""
-    for site in sites:  # break if match
-        logging.debug("site = %s", site)
-        res = re.search(sites[site]["netregex"], s.getsockname()[0])
-        logging.debug(
-            "res = re.search(%s, %s)", sites[site]["netregex"], s.getsockname()[0]
-        )
-        logging.debug("res = %s", res)
-        if res:
-            break
-    s.close()
+    if not site:  # try to infer from local network address
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))  # connect to google dns server
+        res = None
+        for site in sites:  # break if match
+            logging.debug("site = %s", site)
+            res = re.search(sites[site]["netregex"], s.getsockname()[0])
+            logging.debug(
+                "res = re.search(%s, %s)", sites[site]["netregex"], s.getsockname()[0]
+            )
+            logging.debug("res = %s", res)
+            if res:
+                break
+        s.close()
 
-    if res:
-        trending_server = sites[site]["server"]
-        trending_port = sites[site]["port"]
-        trending_tz = sites[site]["tz"]
-        logging.debug(
-            "using site: %s: trending server: %s:%s tz: %s",
-            site,
-            trending_server,
-            trending_port,
-            trending_tz,
-        )
-    else:
-        trending_server = sites["localhost"]["server"]
-        trending_port = sites["localhost"]["port"]
-        trending_tz = sites["localhost"]["tz"]
-        logging.debug(
-            "using site: %s: trending server: %s:%s tz: %s",
-            site,
-            trending_server,
-            trending_port,
-            trending_tz,
-        )
-    # test connection to trending server, just get head to verify
-    #
+    trending_server = sites[site]["server"]
+    trending_port = sites[site]["port"]
+    trending_tz = sites[site]["tz"]
+    logging.debug(
+        "using site: %s: server: %s port: %s tz: %s",
+        site,
+        trending_server,
+        trending_port,
+        trending_tz,
+    )
     try:
-        requests.head("http://{}:{}".format(trending_server, trending_port))
+        requests.head(
+            "http://{}:{}".format(trending_server, trending_port), timeout=2.0
+        )
     except requests.ConnectionError as e:
         logging.error("ConnectionError: %s", e)
         logging.error("check status connection to trending server: %s", trending_server)
-        return None
-    return trending_server, trending_port, trending_tz
+        return None, None, None, None
+    return site, trending_server, trending_port, trending_tz
 
 
 def geturi(uri):
@@ -241,7 +233,7 @@ def geturi(uri):
     if res:
         #  we have a url, use request to return it
         try:
-            resp = requests.head(uri)
+            resp = requests.head(uri, timeout=2.0)
         except requests.ConnectionError as e:
             logging.error("ConnectionError: %s", e)
             return None
@@ -323,13 +315,13 @@ def print_channel_structure(xmlcontent):
                     )
 
 
-def update_trending_channels_xml(tstart=None, tstop=None):
+def update_trending_channels_xml(site, tstart=None, tstop=None):
     """maintain local cache of trending channels in xml file
        arg: tstart -- channels active since tstart (seconds since the epoch)
     """
     logging.debug("update_trending_channels_xml(%s, %s)", tstart, tstop)
     cachedir = "{}/.trender".format(os.environ.get("HOME"))
-    channel_file = "{}/.trender/listchannels.xml".format(os.environ.get("HOME"))
+    channel_file = "{}/.trender/{}_channels.xml".format(os.environ.get("HOME"), site)
     update = True
     # check channel_file exists, get mtime, update if need be
     if not os.path.exists(cachedir):  # make cachdir if not exist
@@ -354,6 +346,8 @@ def update_trending_channels_xml(tstart=None, tstop=None):
         chfile = open(channel_file, mode="rb")
         xmlstring = chfile.read()
         chfile.close()
+
+        trending_tz = sites[site]["tz"]
         root = etree.fromstring(xmlstring)
         active_since = root.attrib.get("activeSinceDate")
         if active_since:  # parse, convert and compare to tstart
@@ -361,7 +355,9 @@ def update_trending_channels_xml(tstart=None, tstop=None):
             logging.debug(
                 "%s channels active_since: %s",
                 channel_file,
-                datetime.fromtimestamp(xml_start_epoch, gettz(tz_trending)),
+                datetime.fromtimestamp(xml_start_epoch, gettz(trending_tz)).isoformat(
+                    timespec="seconds"
+                ),
             )
         # If tstart is inside the interval: [xml_start, last_update]
         # then can guarantee desired channels were being published
@@ -378,13 +374,13 @@ def update_trending_channels_xml(tstart=None, tstop=None):
         else:
             maxidle = 3600 * 24 * 7  # give it a week
             xstart = int(time.time() - maxidle)
-        xmlstring = get_all_channels(maxidle)
+        xmlstring = get_all_channels(site, maxidle)
         root = etree.fromstring(xmlstring)
         active_since = root.attrib.get("activeSinceDate")
         if not active_since:  # needed until service adds this attrib
-            active_since_str = datetime.fromtimestamp(xstart).isoformat(
-                timespec="seconds"
-            )
+            active_since_str = datetime.fromtimestamp(
+                xstart, gettz(trending_tz)
+            ).isoformat(timespec="seconds")
             root.set("activeSinceDate", active_since_str)
             logging.warning(
                 "setting activeSinceDate= %s (missing in res)", active_since_str
