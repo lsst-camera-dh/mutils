@@ -244,11 +244,7 @@ def parse_args():
         "--forceupdate", action="store_true", help="Force update on cached channel file"
     )
     parser.add_argument(
-        "--site",
-        required=False,
-        default="localhost",
-        choices=sites_list,
-        help="specify trending site",
+        "--site", required=False, choices=sites_list, help="specify trending site",
     )
 
     #
