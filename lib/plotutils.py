@@ -255,7 +255,7 @@ def mk_legend(placement: str, nrows: int, handles: list, labels: list, pax: plt.
     pax:       axis to use
     """
     logging.debug("mk_legend():")
-    trnc = int(36 / nrows)  # max before truncation
+    trnc = int(39 / nrows)  # max before truncation
     if len(handles) < 5:  # place in the box
         location = "best"
         fsize = "x-small"

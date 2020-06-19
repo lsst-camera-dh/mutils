@@ -32,39 +32,45 @@ sites = dict()
 site = None  # module scope variable
 #
 sites["slac"] = dict()
+sites["slac"]["name"] = "slac"
 sites["slac"]["netregex"] = r"134\.79\.[0-9]*\.[0-9]*"
-sites["slac"]["port"] = 8080
 sites["slac"]["server"] = "lsst-mcm.slac.stanford.edu"
+sites["slac"]["port"] = 8080
 sites["slac"]["tz"] = "America/Los_Angeles"
 #
 sites["ats"] = dict()
+sites["ats"]["name"] = "ats"
 sites["ats"]["netregex"] = r"139\.229\.170\.[0-9]"
-sites["ats"]["port"] = 8080
 sites["ats"]["server"] = "atsccs1.cp.lsst.org"
+sites["ats"]["port"] = 8080
 sites["ats"]["tz"] = "UTC"
 #
 sites["summit"] = dict()
+sites["summit"]["name"] = "summit"
 sites["summit"]["netregex"] = r"139\.229\.174\.[0-9]"
-sites["summit"]["port"] = 8080
 sites["summit"]["server"] = "ccs-db01.cp.lsst.org"
+sites["summit"]["port"] = 8080
 sites["summit"]["tz"] = "UTC"
 #
 sites["comcam"] = dict()
+sites["comcam"]["name"] = "comcam"
 sites["comcam"]["netregex"] = r"139\.229\.150\.[0-9]"
-sites["comcam"]["port"] = 8080
 sites["comcam"]["server"] = "comcam-db01.ls.lsst.org"
+sites["comcam"]["port"] = 8080
 sites["comcam"]["tz"] = "UTC"
 #
 # this should be last and matches anything else
 # requires a local db or ssh tunnel to the actual server
 sites["localhost"] = dict()
+sites["localhost"]["name"] = "localhost"
 sites["localhost"]["netregex"] = r"[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+"
-sites["localhost"]["port"] = 8080
 sites["localhost"]["server"] = "localhost"
+sites["localhost"]["port"] = 8080
 sites["localhost"]["tz"] = gettz().tzname(datetime.now())
 
 
 def set_site(ssite):
+    global site
     site = ssite
 
 
@@ -217,13 +223,14 @@ def get_trending_server(site: str = None):
     )
     try:
         requests.head(
-            "http://{}:{}".format(trending_server, trending_port), timeout=2.0
+            "http://{}:{}".format(trending_server, trending_port), timeout=6.0
         )
     except requests.ConnectionError as e:
         logging.error("ConnectionError: %s", e)
         logging.error("check status connection to trending server: %s", trending_server)
         return None, None, None, None
-    return site, trending_server, trending_port, trending_tz
+    #  return site, trending_server, trending_port, trending_tz
+    return sites[site]
 
 
 def geturi(uri):
@@ -233,7 +240,7 @@ def geturi(uri):
     if res:
         #  we have a url, use request to return it
         try:
-            resp = requests.head(uri, timeout=2.0)
+            resp = requests.head(uri, timeout=6.0)
         except requests.ConnectionError as e:
             logging.error("ConnectionError: %s", e)
             return None
@@ -401,7 +408,7 @@ def update_trending_channels_xml(site, tstart=None, tstop=None):
     return channel_file
 
 
-def convert_to_seconds(duration_str):
+def convert_to_seconds(duration_str) -> int:
     """
     for (s)econds, (m)inutes, (h)ours, (d)ays, (w)eeks
     return duration in seconds
@@ -470,7 +477,8 @@ def query_rest_server(ts1, ts2, data_url, idstr, nbins):
     return resp.content
 
 
-def get_unique_time_intervals(optlist):
+#   def get_unique_time_intervals(optlist):
+def get_unique_time_intervals(starts=None, stops=None, intervalarr=None, duration=None):
     """
     Input: Command line options defining a set of intervals
            using pairs or start/stop with duration,
@@ -483,20 +491,20 @@ def get_unique_time_intervals(optlist):
             as [[t00,t01], [t10,t11], ...,[tn0,tn1]]
     """
     intervals = []
-    if optlist.interval:
-        for interval in optlist.interval:
+    if starts:
+        for start in starts:
+            (t1, t2) = get_time_interval(start, None, duration)
+            intervals.append([t1, t2])
+    elif stops:
+        for stop in stops:
+            (t1, t2) = get_time_interval(None, stop, duration)
+            intervals.append([t1, t2])
+    elif intervalarr:
+        for interval in intervalarr:
             (t1, t2) = get_time_interval(interval[0], interval[1])
             intervals.append([t1, t2])
-    elif optlist.start:
-        for start in optlist.start:
-            (t1, t2) = get_time_interval(start, None, optlist.duration)
-            intervals.append([t1, t2])
-    elif optlist.stop:
-        for stop in optlist.stop:
-            (t1, t2) = get_time_interval(None, stop, optlist.duration)
-            intervals.append([t1, t2])
     else:
-        (t1, t2) = get_time_interval(None, None, optlist.duration)
+        (t1, t2) = get_time_interval(None, None, duration)
         intervals.append([t1, t2])
 
     for interval in intervals:
@@ -504,17 +512,16 @@ def get_unique_time_intervals(optlist):
             logging.error("Date assignment failed")
             return None
 
-    if optlist.debug:
-        i = 0
-        for interval in intervals:
-            logging.debug(
-                "time interval[%d] (before merge): %d -- %d (%d sec)",
-                i,
-                interval[0],
-                interval[1],
-                (interval[1] - interval[0]) / 1000,
-            )
-            i += 1
+    i = 0
+    for interval in intervals:
+        logging.debug(
+            "time interval[%d] (before merge): %d -- %d (%d sec)",
+            i,
+            interval[0],
+            interval[1],
+            (interval[1] - interval[0]) / 1000,
+        )
+        i += 1
 
     # merge overlaps to generate list of distinct intervals
     intervals.sort()  # sorts so that intervals[i][0] <= intervals[i+1][0]
@@ -528,17 +535,16 @@ def get_unique_time_intervals(optlist):
         else:
             i += 1  # no overlap so move to next pair
 
-    if optlist.debug:
-        i = 0
-        for interval in intervals:
-            logging.debug(
-                "time interval[%d] (after merge): %d -- %d (%d sec)",
-                i,
-                interval[0],
-                interval[1],
-                (interval[1] - interval[0]) / 1000,
-            )
-            i += 1
+    i = 0
+    for interval in intervals:
+        logging.debug(
+            "time interval[%d] (after merge): %d -- %d (%d sec)",
+            i,
+            interval[0],
+            interval[1],
+            (interval[1] - interval[0]) / 1000,
+        )
+        i += 1
 
     return intervals
 

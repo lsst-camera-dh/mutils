@@ -191,7 +191,7 @@ def parse_args():
         nargs="?",
         metavar="Title (or blank)",
         const="auto",
-        help="specify Title String",
+        help="specify Title String or get auto-generated title",
     )
     parser.add_argument("--style", default="ggplot", required=False, choices=style_list)
     parser.add_argument(
@@ -219,7 +219,7 @@ def parse_args():
         "--duration",
         metavar="seconds",
         default=None,
-        help="duration [s]|(*s,*m,*h,*d) start/stop spec",
+        help="duration [s]|(*s,*m,*h,*d,*w) start/stop spec",
     )
     parser.add_argument(
         "--timebins",
@@ -236,17 +236,18 @@ def parse_args():
         help="use same x-axis limits on all plots",
     )
     #
+    # General options
+    #
+    parser.add_argument(
+        "--site", required=False, choices=sites_list, help="Specify trending site",
+    )
     parser.add_argument(
         "--debug", action="store_true", help="Print additional debugging info"
     )
-    #
+    parser.add_argument("--mjd", action="store_true", help="Plot on MJD time axis")
     parser.add_argument(
-        "--forceupdate", action="store_true", help="Force update on cached channel file"
+        "--forceupdate", action="store_true", help="Force update of cached channel file"
     )
-    parser.add_argument(
-        "--site", required=False, choices=sites_list, help="specify trending site",
-    )
-
     #
     #
     return parser.parse_args()
@@ -262,7 +263,9 @@ def main():
     logging.debug("optlist: %s", optlist)
 
     # get list of time intervals to process
-    intervals = tu.get_unique_time_intervals(optlist)
+    intervals = tu.get_unique_time_intervals(
+        optlist.start, optlist.stop, optlist.interval, optlist.duration
+    )
     if not intervals:
         logging.error("time interval spec failed")
         sys.exit(1)
@@ -272,29 +275,23 @@ def main():
     tmin = intervals[0][0]
     tmax = intervals[-1][1]
 
-    # get the restful server info, ugly
-    (
-        trending_site,
-        trending_server,
-        trending_port,
-        tz_trending,
-    ) = tu.get_trending_server(optlist.site)
-
-    if trending_server:
+    # set up the trending service
+    tsite = tu.get_trending_server(optlist.site)
+    if tsite["server"]:
         data_url = "http://{}:{}/rest/data/dataserver".format(
-            trending_server, trending_port
+            tsite["server"], tsite["port"]
         )
     else:
         logging.error("failed to contact trending server")
         sys.exit(1)
-
     logging.debug(
-        "trending_site: %s trending_server: %s trending_port: %d timezone: %s",
-        trending_site,
-        trending_server,
-        trending_port,
-        tz_trending,
+        "site: %s server: %s port: %d timezone: %s",
+        tsite["name"],
+        tsite["server"],
+        tsite["port"],
+        tsite["tz"],
     )
+
     # from https://stackoverflow.com/questions/16710076
     # regex to split a string preserving quoted fields
     #
@@ -314,16 +311,16 @@ def main():
     #     2.) a pattern that can be matched against the cached full list of
     #         channels in ~/.trender/listchannels.xml
     #
-    # After evaluating input, channels needed are stored in "oflds"
+    # After evaluating input, channels needed are stored in "oflds" dict
     # oflds[channel_id_num] = trending_full_path
     # eg: oflds[2372] = aliveness-raft/R00.Reb2.RGL
     #
     oflds = dict()  # dict to hold channel information
+    regexes = []
     #
     channel_source_type = None
     chid_dict = None
     channel_file = None
-    regexes = []
     for csource in optlist.channel_source:
         logging.debug("channel_source= %s", csource)
         #  test to determine type of channel_source
@@ -358,10 +355,10 @@ def main():
             logging.debug("eval pattern for matching channels...")
             if not channel_file:
                 if optlist.forceupdate:
-                    channel_file = tu.update_trending_channels_xml(trending_site)
+                    channel_file = tu.update_trending_channels_xml(tsite["name"])
                 else:
                     channel_file = tu.update_trending_channels_xml(
-                        trending_site, tmin / 1000, tmax / 1000
+                        tsite["name"], tmin / 1000, tmax / 1000
                     )
 
             if not chid_dict:
@@ -389,10 +386,9 @@ def main():
             print("   id: {}  path: {}".format(chid, oflds[chid]))
         sys.exit(0)
 
-    if optlist.debug:
-        logging.debug("Found matching channels:")
-        for chid in oflds:
-            logging.debug("id= %5d  path= %s", int(chid), oflds[chid])
+    logging.debug("Found matching channels:")
+    for chid in oflds:
+        logging.debug("id= %5d  path= %s", int(chid), oflds[chid])
 
     #  Get the trending data either from local saved files or via
     #  trending db queries to the rest service
@@ -432,6 +428,7 @@ def main():
             del tree
 
     else:
+        # TODO fix the timebins to match CCS actual api
         # query the rest server query and place responses into a list
         # join the ids requested as "id0&id=id1&id=id2..." for query
         idstr = "&id=".join(id for id in oflds)
@@ -462,11 +459,11 @@ def main():
         os.write(1, xml_dec)
         datas_str = '<datas> {}="{}" {}="{}" {}="{}"\n'.format(
             "trending_server",
-            trending_server,
+            tsite["server"],
             "trending_port",
-            trending_port,
-            "tz_trending",
-            tz_trending,
+            tsite["port"],
+            "trending_tz",
+            tsite["tz"],
         )
         os.write(1, str.encode(datas_str))
         for res in responses:
@@ -575,7 +572,7 @@ def main():
                         chandata[chid].append((tstamp, tvalue))
                         break
 
-    # Done ranslating the xml responses into internal lists etc.
+    # Done translating the xml responses into internal lists etc.
     # Delete all the raw xml responses
     logging.debug("processed %d xml channel responses", len(responses))
     logging.debug("processed %d uniq channel requests", len(chanspec))
@@ -648,7 +645,7 @@ def main():
         print(
             '#     tmin={}: "{}"'.format(
                 tmin,
-                dt.datetime.fromtimestamp(tmin / 1000, gettz(tz_trending)).isoformat(
+                dt.datetime.fromtimestamp(tmin / 1000, gettz(tsite["tz"])).isoformat(
                     timespec="seconds"
                 ),
             )
@@ -656,7 +653,7 @@ def main():
         print(
             '#     tmax={}: "{}"'.format(
                 tmax,
-                dt.datetime.fromtimestamp(tmax / 1000, gettz(tz_trending)).isoformat(
+                dt.datetime.fromtimestamp(tmax / 1000, gettz(tsite["tz"])).isoformat(
                     timespec="seconds"
                 ),
             )
@@ -686,7 +683,7 @@ def main():
             for (tstamp, value) in chandata[chid]:
                 try:
                     date = dt.datetime.fromtimestamp(
-                        tstamp / 1000.0, gettz(tz_trending)
+                        tstamp / 1000.0, gettz(tsite["tz"])
                     ).isoformat(timespec="milliseconds")
                     print(
                         "{:<{wt}d} {:>{wv}g} {:>{wu}s}   ".format(
@@ -727,14 +724,14 @@ def main():
         )
         print(
             '#     tmin="{}"'.format(
-                dt.datetime.fromtimestamp(tmin / 1000, gettz(tz_trending)).isoformat(
+                dt.datetime.fromtimestamp(tmin / 1000, gettz(tsite["tz"])).isoformat(
                     timespec="seconds"
                 )
             )
         )
         print(
             '#     tmax="{}"'.format(
-                dt.datetime.fromtimestamp(tmax / 1000, gettz(tz_trending)).isoformat(
+                dt.datetime.fromtimestamp(tmax / 1000, gettz(tsite["tz"])).isoformat(
                     timespec="seconds"
                 )
             )
@@ -973,7 +970,7 @@ def main():
                     #
                     # convert time axis to matplotlib dates sequence
                     dates = [
-                        dt.datetime.fromtimestamp(ts, gettz(tz_trending)) for ts in x
+                        dt.datetime.fromtimestamp(ts, gettz(tsite["tz"])) for ts in x
                     ]
                     mds = mdate.date2num(dates)
                     if mds.size == 0 and not (
@@ -999,7 +996,7 @@ def main():
                         )
                         anno_string = "{} (tstart)".format(
                             dt.datetime.fromtimestamp(
-                                intervals[idx][0] / 1000, gettz(tz_trending)
+                                intervals[idx][0] / 1000, gettz(tsite["tz"])
                             ).isoformat(timespec="seconds")
                         )
                         ax.annotate(
@@ -1018,14 +1015,14 @@ def main():
                     if not labeled:  # label first valid interval, save color
                         mlabel = "{}".format(chanspec[chid]["path"])
                         line = ax.plot_date(
-                            mds, y, fmt, label=mlabel, tz=gettz(tz_trending)
+                            mds, y, fmt, label=mlabel, tz=gettz(tsite["tz"])
                         )
                         mcolor = line[0].get_color()
                         logging.debug("mcolor= %s", mcolor)
                         labeled = True
                     else:  # no label on later intervals, use saved color
                         line = ax.plot_date(
-                            mds, y, fmt, color=mcolor, label=None, tz=gettz(tz_trending)
+                            mds, y, fmt, color=mcolor, label=None, tz=gettz(tsite["tz"])
                         )
 
                     # set x,y-axis label format
@@ -1040,7 +1037,7 @@ def main():
                         ) or nax - axcnt - 1 < ncols:
                             xlabel_str = "{} (tstart)".format(
                                 dt.datetime.fromtimestamp(
-                                    intervals[idx][0] / 1000, gettz(tz_trending)
+                                    intervals[idx][0] / 1000, gettz(tsite["tz"])
                                 ).isoformat(timespec="seconds")
                             )
                             if optlist.timebins:
@@ -1091,14 +1088,14 @@ def main():
                                 xid = 1
                             xlabel_str = "{} ({}[0])".format(
                                 dt.datetime.fromtimestamp(
-                                    intervals[0][xid] / 1000, gettz(tz_trending)
+                                    intervals[0][xid] / 1000, gettz(tsite["tz"])
                                 ).isoformat(timespec="seconds"),
                                 xstr,
                             )
                             if len(intervals) > 1:
                                 xlabel_last = "{} ({}[{}])".format(
                                     dt.datetime.fromtimestamp(
-                                        intervals[-1][xid] / 1000, gettz(tz_trending)
+                                        intervals[-1][xid] / 1000, gettz(tsite["tz"])
                                     ).isoformat(timespec="seconds"),
                                     xstr,
                                     len(intervals) - 1,
