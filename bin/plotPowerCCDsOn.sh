@@ -21,7 +21,7 @@ regexes[0]=${1}'/[CO].*I'       # board currents
 regexes[1]=${1}'/[PSR].*[UL]$'  # clock levels
 regexes[2]=${1}'/S.*/.*V$'      # bias voltages
 
-trender.py --lay 3x1 --out --start "${2}" --title powerCCDsOn:${1} --overlayreg --plot --dur 2m --fmt "o-" -- ${regexes[@]}
+trender.py --lay 3x1 --out --start "${2}" --title powerCCDsOn:${1} --overlayreg --plot --dur 25s --fmt "o-" -- ${regexes[@]}
 
 # All channels for Reb0
 #

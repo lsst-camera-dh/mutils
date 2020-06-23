@@ -22,9 +22,9 @@ st=$2
 declare -a regexes
 regexes[0]=${1}'/[CO].*I'       # board currents
 regexes[1]=${1}'/[PSR].*[UL]$'  # clock levels
-regexes[2]=${1}'/S.*/.*V$'      # bias voltages
+regexes[2]=${1}'/S../.*V$'      # bias voltages
 
-trender.py --lay 3x1 --out --start "${st}" --tit testCCDShorts --overlayreg --plot --dur 2m --fmt 'o-' -- ${regexes[@]}
+trender.py --lay 3x1 --out --start "${st}" --title testCCDShorts:${1} --overlayreg --plot --dur 9s --fmt 'o-' -- ${regexes[@]}
 
 # All channels for Reb0
 #
