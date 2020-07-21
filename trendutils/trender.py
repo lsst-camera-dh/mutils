@@ -7,6 +7,7 @@ import argparse
 import textwrap
 import logging
 import sys
+import copy
 import math
 import datetime as dt
 from lxml import etree
@@ -862,8 +863,15 @@ def main():
                 if not chid_matched:
                     logging.error("no regex matches %s", path)
                     sys.exit(1)
-
-            nax = axis_idx
+            nax = axis_idx  # so now have an axis count, need to re-assign
+            # now re-assign axis ids to match command line regexes order
+            regex_map_tmp = copy.deepcopy(regex_map)
+            aix = 0
+            for regex in regexes:
+                for unit in sorted(regex_map[regex].keys()):
+                    regex_map_tmp[regex][unit] = aix
+                    aix += 1
+            regex_map = regex_map_tmp
             logging.debug("regex_map=%s", regex_map)
         elif optlist.overlay:
             nax = 1

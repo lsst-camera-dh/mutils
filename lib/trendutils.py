@@ -223,7 +223,7 @@ def get_trending_server(site: str = None):
     )
     try:
         requests.head(
-            "http://{}:{}".format(trending_server, trending_port), timeout=6.0
+            "http://{}:{}".format(trending_server, trending_port), timeout=10.0
         )
     except requests.ConnectionError as e:
         logging.error("ConnectionError: %s", e)
@@ -240,7 +240,7 @@ def geturi(uri):
     if res:
         #  we have a url, use request to return it
         try:
-            resp = requests.head(uri, timeout=6.0)
+            resp = requests.head(uri, timeout=10.0)
         except requests.ConnectionError as e:
             logging.error("ConnectionError: %s", e)
             return None

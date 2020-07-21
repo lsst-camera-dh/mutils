@@ -59,7 +59,7 @@ def get_fig_and_axis(nax, layout, overlay, sharex=False, sharey=False, xdpi=None
             nprows += 1
             npcols = int(math.ceil(float(nax) / nprows))
 
-        # portrait
+        #
         if layout == "landscape":
             nprows, npcols = npcols, nprows
             if fsize[0] < fsize[1]:
@@ -84,6 +84,7 @@ def get_fig_and_axis(nax, layout, overlay, sharex=False, sharey=False, xdpi=None
     logging.debug(
         "subplots layout for nax=%s is nprows=%s x npcols=%s", nax, nprows, npcols
     )
+    # logging.info("subplots size is fsize[0]=%s x fsize[1]=%s", fsize[0], fsize[1])
 
     fig, axes = plt.subplots(
         nprows, npcols, sharex=sharex, sharey=sharey, squeeze=False, dpi=xdpi
