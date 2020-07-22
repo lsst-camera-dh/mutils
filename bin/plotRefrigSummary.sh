@@ -3,7 +3,7 @@
 #------------------------------------------------------------------------
 function usage {
   cat <<-EOM
-  Usage ${0##*/} rebPath [startTime]
+  Usage ${0##*/} [startTime]
     startTime ~ 2020-06-19T11:00:41-07:00
     quote time if it contains spaces
   Options:
