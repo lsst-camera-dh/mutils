@@ -12,10 +12,6 @@ function usage {
 EOM
 exit 1
 }
-if [ $# -gt 4 ]; then
-    usage
-fi
-
 #-- process commandline options
 #
 duration=
@@ -29,10 +25,14 @@ do
 done
 shift $((OPTIND - 1))
 
-if [ $2"XXX" == "XXX" ] ; then
+if [ $# -gt 1 ]; then
+    usage
+fi
+
+if [ $1"XXX" == "XXX" ] ; then
     st="--stop "$(date --iso-8601=s)
 else
-    st="--start ${2}"
+    st="--start ${1}"
 fi
 
 declare -a regexes
@@ -44,8 +44,11 @@ regexes[4]='hex/Cold1/.*Tmp'
 regexes[5]='hex/Cold2/.*Tmp'
 regexes[6]='[hr].*[xg]/Cold./(Supply|Dischrg).*Prs'
 regexes[7]='[hr].*[xg]/Cold./(Suction|Return).*Prs'
+regexes[8]='refrig/Cold./CompPower'
+regexes[9]='thermal/C.*RTD.*'
+
 if [ $duration"XXX" == "XXX" ] ; then
       duration=10m
 fi
 
-trender.py ${st} --dur $duration --title "Refrig Summary" --plot --layout 4x2 --outside --overlayregex -- "${regexes[@]}"
+trender.py ${st} --dur $duration --title "Refrig Summary" --plot --layout 5x2 --outside --overlayregex -- "${regexes[@]}"
