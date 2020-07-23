@@ -36,19 +36,22 @@ else
 fi
 
 declare -a regexes
-regexes[0]='[rh].*[xg]/Cold1/(.*Cooling$|.*Heat$)' 
-regexes[1]='[rh].*[xg]/Cold2/(.*Cooling$|.*Heat$)'
-regexes[2]='refrig/Cold1/([^D].*Tmp_M$|.*Tmp$)'
-regexes[3]='refrig/Cold2/([^D].*Tmp_M$|.*Tmp$)' 
-regexes[4]='hex/Cold1/.*Tmp'
-regexes[5]='hex/Cold2/.*Tmp'
-regexes[6]='[hr].*[xg]/Cold./(Supply|Dischrg).*Prs'
-regexes[7]='[hr].*[xg]/Cold./(Suction|Return).*Prs'
-regexes[8]='refrig/Cold./CompPower'
-regexes[9]='thermal/C.*RTD.*'
+regexes[0]='^[rh].*[xg]/Cold1/(.*Cooling$|.*Heat$)' 
+regexes[1]='^[rh].*[xg]/Cold2/(.*Cooling$|.*Heat$)'
+regexes[2]='^refrig/Cold1/(.*Tmp_M$|[^A^C].*Tmp$)'
+regexes[3]='^refrig/Cold2/(.*Tmp_M$|[^A^C].*Tmp$)' 
+regexes[4]='^hex/Cold1/.*Tmp'
+regexes[5]='^hex/Cold2/.*Tmp'
+regexes[6]='^[hr].*[xg]/Cold./(Supply|Dischrg).*Prs'
+regexes[7]='^[hr].*[xg]/Cold./(Suction|Return).*Prs'
+regexes[8]='^[rf].*/Cold./CompPower$'
+regexes[9]='^[tf].*[es]/(ColdTotal_P$|CryoTotal_P$|RebTotalPower$)'
+regexes[10]='^thermal/Cold_Temp/CLP-RTD-..'
+regexes[11]='^thermal/Cryo_Temp/CYP-RTD-.[24]'
+
 
 if [ $duration"XXX" == "XXX" ] ; then
       duration=10m
 fi
 
-trender.py ${st} --dur $duration --title "Refrig Summary" --plot --layout 5x2 --outside --overlayregex -- "${regexes[@]}"
+trender.py ${st} --dur $duration --title "Refrig Summary" --plot --layout 6x2 --outside --overlayregex -- "${regexes[@]}"

@@ -223,7 +223,7 @@ def get_trending_server(site: str = None):
     )
     try:
         requests.head(
-            "http://{}:{}".format(trending_server, trending_port), timeout=10.0
+            "http://{}:{}".format(trending_server, trending_port), timeout=15.0
         )
     except requests.ConnectionError as e:
         logging.error("ConnectionError: %s", e)
