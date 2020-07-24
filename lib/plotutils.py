@@ -39,7 +39,9 @@ def update_rcparams():
         plt.rcParams.update({"figure.dpi": 166})
 
 
-def get_fig_and_axis(nax, layout, overlay, sharex=False, sharey=False, xdpi=None):
+def get_fig_and_axis(
+    nax, layout, overlay, sharex=False, sharey=False, xdpi=None, fsize=None
+):
     """
     Create the figure and subplot axes based on number of axes requested,
     and options.
@@ -48,7 +50,6 @@ def get_fig_and_axis(nax, layout, overlay, sharex=False, sharey=False, xdpi=None
 
     Returns (fig, axes) tuple
     """
-    fsize = plt.rcParams["figure.figsize"]
     if nax == 1 or overlay:
         npcols = nprows = 1
     else:
@@ -62,33 +63,25 @@ def get_fig_and_axis(nax, layout, overlay, sharex=False, sharey=False, xdpi=None
         #
         if layout == "landscape":
             nprows, npcols = npcols, nprows
-            if fsize[0] < fsize[1]:
-                fsize[0], fsize[1] = fsize[1], fsize[0]
 
         if re.match(r"([1-9]+)x([1-9]+)$", layout):
             (rstr, cstr) = re.match(r"([1-9]+)x([1-9]+)$", layout).groups()
             nprows, npcols = int(rstr), int(cstr)
 
-        if nprows > npcols:  # portrait, make y-dimen bigger
-            if fsize[0] > fsize[1]:
-                fsize[0], fsize[1] = fsize[1], fsize[0]
-            if fsize[1] < 1.2 * fsize[0]:
-                fsize[1] = 1.2 * fsize[0]
-        if nprows < npcols:  # landscape, make x-dimen bigger
-            if fsize[1] > fsize[0]:
-                fsize[0], fsize[1] = fsize[1], fsize[0]
-            if fsize[0] < 1.2 * fsize[1]:
-                fsize[0] = 1.2 * fsize[1]
-
-    plt.rcParams.update({"figure.figsize": fsize})
     logging.debug(
         "subplots layout for nax=%s is nprows=%s x npcols=%s", nax, nprows, npcols
     )
-    # logging.info("subplots size is fsize[0]=%s x fsize[1]=%s", fsize[0], fsize[1])
 
+    if fsize:
+        plt.rcParams["figure.figsize"] = fsize
+    else:
+        plt.rcParams["figure.figsize"] = (9.0, 5.4)
     fig, axes = plt.subplots(
-        nprows, npcols, sharex=sharex, sharey=sharey, squeeze=False, dpi=xdpi
+        nprows, npcols, sharex=sharex, sharey=sharey, squeeze=False, dpi=xdpi,
     )
+    fsize = plt.rcParams["figure.figsize"]
+    logging.debug("subplots size is fsize[0]=%s x fsize[1]=%s", fsize[0], fsize[1])
+
     return (fig, axes)
 
 

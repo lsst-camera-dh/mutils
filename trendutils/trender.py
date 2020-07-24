@@ -199,6 +199,7 @@ def parse_args():
         "--layout", default="portrait", help='"landscape"|"portrait"|"nxm"'
     )
     parser.add_argument("--dpi", type=int, help="set screen dpi")
+    parser.add_argument("--fsize", help="set figsize (x-width,y-height)")
     #
     # Time interval specifications
     #
@@ -897,8 +898,15 @@ def main():
             sharex = optlist.sharex
 
         fig, axes = pu.get_fig_and_axis(
-            nax, optlist.layout, optlist.overlay, sharex, False, optlist.dpi
+            nax,
+            optlist.layout,
+            optlist.overlay,
+            sharex,
+            False,
+            optlist.dpi,
+            optlist.fsize,
         )
+
         logging.debug("len(axes)=%d", len(axes))
         logging.debug("axes.shape= %s", axes.shape)
         nrows, ncols = (axes.shape[0], axes.shape[1])
