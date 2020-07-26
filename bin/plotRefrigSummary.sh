@@ -48,10 +48,12 @@ regexes[8]='^[rf].*/Cold./CompPower$'
 regexes[9]='^[tf].*[es]/(ColdTotal_P$|CryoTotal_P$|RebTotalPower$)'
 regexes[10]='^thermal/Cold_Temp/CLP-RTD-..'
 regexes[11]='^thermal/Cryo_Temp/CYP-RTD-.[24]'
+regexes[12]="refrig/Cold./HGBValvePosn"
+regexes[13]="refrig/Cold./CoolValvePosn"
 
 
 if [ $duration"XXX" == "XXX" ] ; then
       duration=10m
 fi
 
-trender.py ${st} --dur $duration --title "Refrig Summary" --plot --layout 6x2 --outside --overlayregex -- "${regexes[@]}"
+trender.py ${st} --dur $duration --title "Refrig Summary" --plot --layout 7x2 --outside --overlayregex -- "${regexes[@]}"
