@@ -3,8 +3,8 @@
 #------------------------------------------------------------------------
 function usage {
   cat <<-EOM
-  Usage ${0##*/} [startTime]
-    startTime ~ 2020-06-19T11:00:41-07:00
+  Usage ${0##*/} [stopTime]
+    stopTime ~ 2020-06-19T11:00:41-07:00
     quote time if it contains spaces
   Options:
     -h (print help msg)
@@ -32,7 +32,7 @@ fi
 if [ $1"XXX" == "XXX" ] ; then
     st="--stop "$(date --iso-8601=s)
 else
-    st="--start ${1}"
+    st="--stop ${1}"
 fi
 
 declare -a regexes
