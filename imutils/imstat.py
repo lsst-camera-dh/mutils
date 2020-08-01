@@ -176,7 +176,6 @@ def stats_proc(optlist, hduids, hdulist):
     # Process each HDU in the list "hduids"
     for hduid in hduids:
         hdu = hdulist[hduid]
-        pix = hdu.data
         name = hdu.name
         if optlist.bias:
             iu.subtract_bias(optlist.bias, optlist.btype, hdu)
@@ -198,12 +197,12 @@ def stats_proc(optlist, hduids, hdulist):
                     logging.error("skipping region %s", reg)
 
         if len(slices) == 0:
-            stats_print(optlist, hduid, name, pix, None)
+            stats_print(optlist, hduid, name, hdu.data, None)
         for slice_spec in slices:
             y1, y2 = slice_spec[0].start + 1, slice_spec[0].stop
             x1, x2 = slice_spec[1].start + 1, slice_spec[1].stop
             reg = "{}:{},{}:{}".format(x1, x2, y1, y2)
-            stats_print(optlist, hduid, name, pix[slice_spec], reg)
+            stats_print(optlist, hduid, name, hdu.data[slice_spec], reg)
 
 
 def stats_print(optlist, sid, name, buf, reg):
