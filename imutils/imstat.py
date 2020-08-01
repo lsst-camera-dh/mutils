@@ -15,7 +15,7 @@ import numpy as np
 
 # put parent directory into sys.path
 bp = os.path.dirname(os.path.realpath(__file__)).split(os.sep)
-modpath = os.sep.join(bp[:-1] + ['lib'])
+modpath = os.sep.join(bp[:-1] + ["lib"])
 sys.path.insert(0, modpath)
 
 #  local imports
@@ -23,63 +23,120 @@ try:
     import imutils as iu
     import mutils as mu
 except ImportError as e:
-    logging.error('Import failed: %s', e)
+    logging.error("Import failed: %s", e)
     exit(1)
+
 
 def parse_args():
     """handle command line"""
     parser = argparse.ArgumentParser(
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        description=textwrap.dedent('''\
+        description=textwrap.dedent(
+            """\
             Calculate statistical quantities for image")
-                                    '''),
-        epilog=textwrap.dedent('''\
-                               '''))
-    parser.add_argument("fitsfile", nargs='+',
-                        metavar="file", help="input fits file(s)")
-    parser.add_argument("--quicklook", action='store_true',
-                        help="estimate signal, noise, counts/sec in adus")
-    sgroup = parser.add_argument_group("stats", "select statistics and regions"
-                                       " (exclusive of quicklook)")
-    sgroup.add_argument("--region", nargs='+', metavar='reg',
-                        help="iraf fmt: \"x1:x2,y1:y2\"")
-    sgroup.add_argument("--datasec", action='store_true',
-                        help="perform stats on DATASEC region")
-    sgroup.add_argument("--overscan", action='store_true',
-                        help="perform stats on serial overscan region")
-    sgroup.add_argument("--poverscan", action='store_true',
-                        help="perform stats on parllel overscan region")
-    sgroup.add_argument("--stats", nargs='+', metavar='stat',
-                        help="select from: {mean median stddev min max}")
-    sgroup.add_argument("--bias", nargs='?', metavar='cols', const='overscan',
-                        help="subtract bias, fmt: \"x1:x2\"")
-    sgroup.add_argument("--btype", default='byrow',
-                        choices=['mean', 'median', 'byrow', 'byrowsmooth',
-                                 'byrowcol', 'byrowcolsmooth'],
-                        help="bias subtract by-row (def) or constant")
+                                    """
+        ),
+        epilog=textwrap.dedent(
+            """\
+                               """
+        ),
+    )
+    parser.add_argument(
+        "fitsfile", nargs="+", metavar="file", help="input fits file(s)"
+    )
+    parser.add_argument(
+        "--quicklook",
+        action="store_true",
+        help="estimate signal, noise, counts/sec in adus",
+    )
+    sgroup = parser.add_argument_group(
+        "stats", "select statistics and regions" " (exclusive of quicklook)"
+    )
+    sgroup.add_argument(
+        "--region", nargs="+", metavar="reg", help='iraf fmt: "x1:x2,y1:y2"'
+    )
+    sgroup.add_argument(
+        "--datasec", action="store_true", help="perform stats on DATASEC region"
+    )
+    sgroup.add_argument(
+        "--overscan",
+        action="store_true",
+        help="perform stats on serial overscan region",
+    )
+    sgroup.add_argument(
+        "--poverscan",
+        action="store_true",
+        help="perform stats on parllel overscan region",
+    )
+    sgroup.add_argument(
+        "--stats",
+        nargs="+",
+        metavar="stat",
+        help="select from: {mean median stddev min max}",
+    )
+    sgroup.add_argument(
+        "--bias",
+        nargs="?",
+        metavar="cols",
+        const="overscan",
+        help='subtract bias, fmt: "x1:x2"',
+    )
+    sgroup.add_argument(
+        "--btype",
+        default="byrow",
+        choices=[
+            "mean",
+            "median",
+            "byrow",
+            "byrowsmooth",
+            "byrowcol",
+            "byrowcolsmooth",
+        ],
+        help="bias subtract by-row (def) or constant",
+    )
     # ---------------------------------------------------------------
     hgroup = parser.add_mutually_exclusive_group()
-    hgroup.add_argument("--hduname", nargs='+',
-                        metavar='idn', help="process HDU list by names")
-    hgroup.add_argument("--hduindex", nargs='+', type=int,
-                        metavar='idx', help="process HDU list by ids")
+    hgroup.add_argument(
+        "--hduname", nargs="+", metavar="idn", help="process HDU list by names"
+    )
+    hgroup.add_argument(
+        "--hduindex", nargs="+", type=int, metavar="idx", help="process HDU list by ids"
+    )
     # ---------------------------------------------------------------
-    parser.add_argument("--rstats", action='store_true',
-                        help="use sigma_clipped_stats() for avg,med,std")
-    parser.add_argument("--tearing", nargs='?', metavar='nrows',
-                        const='datasec', help="add tearing metric:"
-                        " nrows|divisdero|datasec(default)")
-    parser.add_argument("--dipoles", action='store_true',
-                        help="add dipole metric to quicklook output")
-    parser.add_argument("--threshold", nargs=1, metavar='thresh', type=float,
-                        help="count number of pixels above threshold")
-    parser.add_argument("--info", action='store_true',
-                        help="print the info() table summarizing file")
-    parser.add_argument("--debug", action='store_true',
-                        help="print additional debugging messages")
-    parser.add_argument("--noheadings", action='store_true',
-                        default=False,
-                        help="Don't print column heads for stats")
+    parser.add_argument(
+        "--rstats",
+        action="store_true",
+        help="use sigma_clipped_stats() for avg,med,std",
+    )
+    parser.add_argument(
+        "--tearing",
+        nargs="?",
+        metavar="nrows",
+        const="datasec",
+        help="add tearing metric:" " nrows|divisdero|datasec(default)",
+    )
+    parser.add_argument(
+        "--dipoles", action="store_true", help="add dipole metric to quicklook output"
+    )
+    parser.add_argument(
+        "--threshold",
+        nargs=1,
+        metavar="thresh",
+        type=float,
+        help="count number of pixels above threshold",
+    )
+    parser.add_argument(
+        "--info", action="store_true", help="print the info() table summarizing file"
+    )
+    parser.add_argument(
+        "--debug", action="store_true", help="print additional debugging messages"
+    )
+    parser.add_argument(
+        "--noheadings",
+        action="store_true",
+        default=False,
+        help="Don't print column heads for stats",
+    )
     return parser.parse_args()
 
 
@@ -94,7 +151,7 @@ def main():
         try:
             hdulist = fits.open(ffile)
         except IOError as ioerr:
-            logging.error('IOError: %s', ioerr)
+            logging.error("IOError: %s", ioerr)
             exit(1)
         if optlist.info:  # just print the image info per file
             hdulist.info()
@@ -103,8 +160,9 @@ def main():
             print("#")
             print("# {}".format(os.path.basename(ffile)))
         # Construct a list of the HDU's to work on
-        hduids = iu.get_requested_image_hduids(hdulist, optlist.hduname,
-                                               optlist.hduindex)
+        hduids = iu.get_requested_image_hduids(
+            hdulist, optlist.hduname, optlist.hduindex
+        )
         if optlist.quicklook:
             quicklook(optlist, hduids, hdulist)
         else:
@@ -121,7 +179,7 @@ def stats_proc(optlist, hduids, hdulist):
         pix = hdu.data
         name = hdu.name
         if optlist.bias:
-            iu.subtract_bias(optlist.bstring, optlist.btype, hdu)
+            iu.subtract_bias(optlist.bias, optlist.btype, hdu)
         slices = []
         (datasec, soscan, poscan) = iu.get_data_oscan_slices(hdu)
         if optlist.datasec:
@@ -132,12 +190,12 @@ def stats_proc(optlist, hduids, hdulist):
             slices.append(poscan)
         if optlist.region:
             for reg in optlist.region:  # if there are regions
-                logging.debug('processing %s', reg)
+                logging.debug("processing %s", reg)
                 slice_spec = iu.parse_region(reg)
                 if slice_spec:
                     slices.append(slice_spec)
                 else:
-                    logging.error('skipping region %s', reg)
+                    logging.error("skipping region %s", reg)
 
         if len(slices) == 0:
             stats_print(optlist, hduid, name, pix, None)
@@ -145,8 +203,7 @@ def stats_proc(optlist, hduids, hdulist):
             y1, y2 = slice_spec[0].start + 1, slice_spec[0].stop
             x1, x2 = slice_spec[1].start + 1, slice_spec[1].stop
             reg = "{}:{},{}:{}".format(x1, x2, y1, y2)
-            stats_print(optlist, hduid, name,
-                        pix[slice_spec], reg)
+            stats_print(optlist, hduid, name, pix[slice_spec], reg)
 
 
 def stats_print(optlist, sid, name, buf, reg):
@@ -162,15 +219,15 @@ def stats_print(optlist, sid, name, buf, reg):
 
     if not optlist.noheadings and ncalls.counter == 0:
         print("#{:>3s} {:>9s}".format("id", "HDUname"), end="")
-        if [stat for stat in optlist.stats if re.match(r'^mea', stat)]:
+        if [stat for stat in optlist.stats if re.match(r"^mea", stat)]:
             print(" {:>8s}".format(mean_str), end="")
-        if [stat for stat in optlist.stats if re.match(r'^med', stat)]:
+        if [stat for stat in optlist.stats if re.match(r"^med", stat)]:
             print(" {:>8s}".format(median_str), end="")
-        if [stat for stat in optlist.stats if re.match(r'^std', stat)]:
+        if [stat for stat in optlist.stats if re.match(r"^std", stat)]:
             print(" {:>7s}".format(stddev_str), end="")
-        if [stat for stat in optlist.stats if re.match(r'^min', stat)]:
+        if [stat for stat in optlist.stats if re.match(r"^min", stat)]:
             print(" {:>7s}".format("min"), end="")
-        if [stat for stat in optlist.stats if re.match(r'^max', stat)]:
+        if [stat for stat in optlist.stats if re.match(r"^max", stat)]:
             print(" {:>7s}".format("max"), end="")
         if reg:
             print(" {:20s}".format("region"), end="")
@@ -184,15 +241,15 @@ def stats_print(optlist, sid, name, buf, reg):
     else:
         avg, med, std = np.mean(buf), np.median(buf), np.std(buf)
 
-    if [stat for stat in optlist.stats if re.match(r'^mea', stat)]:
+    if [stat for stat in optlist.stats if re.match(r"^mea", stat)]:
         print(" {:>8g}".format(avg), end="")
-    if [stat for stat in optlist.stats if re.match(r'^med', stat)]:
+    if [stat for stat in optlist.stats if re.match(r"^med", stat)]:
         print(" {:>8g}".format(med), end="")
-    if [stat for stat in optlist.stats if re.match(r'^std', stat)]:
+    if [stat for stat in optlist.stats if re.match(r"^std", stat)]:
         print(" {:>7.4g}".format(std), end="")
-    if [stat for stat in optlist.stats if re.match(r'^min', stat)]:
+    if [stat for stat in optlist.stats if re.match(r"^min", stat)]:
         print(" {:>7g}".format(np.min(buf)), end="")
-    if [stat for stat in optlist.stats if re.match(r'^max', stat)]:
+    if [stat for stat in optlist.stats if re.match(r"^max", stat)]:
         print(" {:>7g}".format(np.max(buf)), end="")
 
     if reg:
@@ -206,7 +263,7 @@ def quicklook(optlist, hduids, hdulist):
     """print quicklook for hdu's according to options
     """
     try:
-        expt = float(hdulist[0].header['EXPTIME'])
+        expt = float(hdulist[0].header["EXPTIME"])
     except KeyError as ke:
         emsg = "KeyError: {}".format(ke)
         logging.warning(emsg)
@@ -216,8 +273,15 @@ def quicklook(optlist, hduids, hdulist):
 
     # perform and print the given statistics quantities
     # fields are: mean, bias, signal, noise, adu/s
-    quick_fields = ["mean", "bias", "signal",
-                    "noise", "adu/sec", "eper:s-cte", "eper:p-cte"]
+    quick_fields = [
+        "mean",
+        "bias",
+        "signal",
+        "noise",
+        "adu/sec",
+        "eper:s-cte",
+        "eper:p-cte",
+    ]
     if optlist.tearing:
         quick_fields.append("tearing")
     if optlist.dipoles:
@@ -231,13 +295,12 @@ def quicklook(optlist, hduids, hdulist):
         name = hdu.name
 
         if optlist.bias:
-            iu.subtract_bias(optlist.bstring, optlist.btype, hdu)
+            iu.subtract_bias(optlist.bias, optlist.btype, hdu)
 
         # get datasec, serial overscan, parallel overscan as slices
         (datasec, soscan, poscan) = iu.get_data_oscan_slices(hdu)
         if not datasec or not soscan or not poscan:
-            logging.error('Could not get DATASEC or overscan specs for %s',
-                          name)
+            logging.error("Could not get DATASEC or overscan specs for %s", name)
             exit(1)
 
         if optlist.rstats:
@@ -268,8 +331,7 @@ def quicklook(optlist, hduids, hdulist):
                     trows = 100
                 else:
                     trows = int(optlist.tearing)
-                print("  {:s}({:>4d}r){:s}".format("tml",
-                                                   trows, "tmr"), end="")
+                print("  {:s}({:>4d}r){:s}".format("tml", trows, "tmr"), end="")
             if "dipoles" in quick_fields:
                 print("{:>9s}".format("%dipoles"), end="")
             if "threshold" in quick_fields:
@@ -307,9 +369,9 @@ def quicklook(optlist, hduids, hdulist):
         if "noise" in quick_fields:
             print(" {:>8.4g}".format(noise), end="")
         if "adu/sec" in quick_fields and expt > 0:
-            print(" {:>8.2f}".format(float(signal)/expt), end="")
+            print(" {:>8.2f}".format(float(signal) / expt), end="")
         if "eper:s-cte" in quick_fields:
-            logging.debug('s-cte------------------')
+            logging.debug("s-cte------------------")
             scte = eper_serial(datasec, soscan, hdu)
             if scte:
                 print(" {:>8.6f}".format(scte), end="")
@@ -317,7 +379,7 @@ def quicklook(optlist, hduids, hdulist):
                 print(" {:>8s}".format("None"), end="")
         # ---------
         if "eper:p-cte" in quick_fields:
-            logging.debug('p-cte------------------')
+            logging.debug("p-cte------------------")
             pcte = eper_parallel(datasec, poscan, hdu)
             if pcte:
                 print(" {:>8.6f}".format(pcte), end="")
@@ -325,20 +387,27 @@ def quicklook(optlist, hduids, hdulist):
                 print(" {:>8s}".format("None"), end="")
         # ---------
         if "tearing" in quick_fields:
-            logging.debug('tearing check----------')
+            logging.debug("tearing check----------")
             tml, tmr = tearing_metric(hdu.data[datasec], trows)
             print(" {:>5.2f}    {:>5.2f}".format(tml, tmr), end="")
         # ---------
         if "dipoles" in quick_fields:
-            logging.debug('dipoles check----------')
+            logging.debug("dipoles check----------")
             ndipole = count_dipoles(hdu.data[datasec])
-            print("{:>9.2f}".format(
-                100.0*float(2*ndipole)/(np.size(hdu.data[datasec]))), end="")
+            print(
+                "{:>9.2f}".format(
+                    100.0 * float(2 * ndipole) / (np.size(hdu.data[datasec]))
+                ),
+                end="",
+            )
         # ---------
         if "threshold" in quick_fields:
-            logging.debug('threshold check----------')
-            print("{:>9d}".format(np.count_nonzero(
-                hdu.data[datasec] > optlist.threshold), end=""))
+            logging.debug("threshold check----------")
+            print(
+                "{:>9d}".format(
+                    np.count_nonzero(hdu.data[datasec] > optlist.threshold), end=""
+                )
+            )
         # ---------
         print("")  # newline)
         ncalls()  # track call count, acts like static variable)
@@ -357,25 +426,32 @@ def eper_serial(datasec, soscan, hdu):
     y1 = int(0.4 * datasec[0].start) + int(0.6 * datasec[0].stop)
     sx0 = int(0.05 * datasec[1].start) + int(0.95 * datasec[1].stop)
     sx1 = datasec[1].stop - 1
-    logging.debug('s_r=%s[%s:%s,%s:%s]', hdu.name, y0, y1, sx0, sx1)
+    logging.debug("s_r=%s[%s:%s,%s:%s]", hdu.name, y0, y1, sx0, sx1)
     s_r = (slice(y0, y1), slice(sx0, sx1))
 
     # define bias region: same rows as signal, exclude 1st cols in x
-    logging.debug('b_r=%s[%s:%s,%s:%s]', hdu.name, y0, y1,
-                  soscan[1].start + ecols, soscan[1].stop)
+    logging.debug(
+        "b_r=%s[%s:%s,%s:%s]", hdu.name, y0, y1, soscan[1].start + ecols, soscan[1].stop
+    )
     b_r = (slice(y0, y1), slice(soscan[1].start + ecols, soscan[1].stop))
     # define eper region: same rows as signal, 1st ecols cols in x
-    logging.debug('e_r=%s[%s:%s,%s:%s]', hdu.name, y0, y1,
-                  soscan[1].start, soscan[1].start + ecols)
+    logging.debug(
+        "e_r=%s[%s:%s,%s:%s]",
+        hdu.name,
+        y0,
+        y1,
+        soscan[1].start,
+        soscan[1].start + ecols,
+    )
     e_r = (slice(y0, y1), slice(soscan[1].start, soscan[1].start + ecols))
 
     bias_mean = np.mean(hdu.data[b_r])
     # signal
     l_n = np.mean(hdu.data[s_r]) - bias_mean
-    logging.debug('l_n=%10.6g', l_n)
+    logging.debug("l_n=%10.6g", l_n)
     # deferred charge is avg of sum of ecols above bias
     l_nn = np.mean((hdu.data[e_r] - bias_mean).sum(axis=1))
-    logging.debug('l_nn=%10.6g', l_nn)
+    logging.debug("l_nn=%10.6g", l_nn)
     if l_n > 0.0:
         eper = 1 - (l_nn / (ncols * l_n))
         return eper
@@ -396,25 +472,37 @@ def eper_parallel(datasec, poscan, hdu):
     y1 = datasec[0].stop - 1
     sx0 = datasec[1].start
     sx1 = datasec[1].stop
-    logging.debug('s_r=%s[%s:%s,%s:%s]', hdu.name, y0, y1, sx0, sx1)
+    logging.debug("s_r=%s[%s:%s,%s:%s]", hdu.name, y0, y1, sx0, sx1)
     s_r = (slice(y0, y1), slice(sx0, sx1))
 
     # define bias region: same cols as signal, exclude 1st rows in y
-    logging.debug('b_r=%s[%s:%s,%s:%s]', hdu.name,
-                  poscan[0].start + erows, poscan[0].stop, sx0, sx1)
+    logging.debug(
+        "b_r=%s[%s:%s,%s:%s]",
+        hdu.name,
+        poscan[0].start + erows,
+        poscan[0].stop,
+        sx0,
+        sx1,
+    )
     b_r = (slice(poscan[0].start + erows, poscan[0].stop), slice(sx0, sx1))
     # define eper region: same rows as signal, 1st ecols cols in x
-    logging.debug('e_r=%s[%s:%s,%s:%s]', hdu.name,
-                  poscan[0].start, poscan[0].start + erows, sx0, sx1)
+    logging.debug(
+        "e_r=%s[%s:%s,%s:%s]",
+        hdu.name,
+        poscan[0].start,
+        poscan[0].start + erows,
+        sx0,
+        sx1,
+    )
     e_r = (slice(poscan[0].start, poscan[0].start + erows), slice(sx0, sx1))
 
     bias_mean_row = np.median(hdu.data[b_r], axis=0)
     # signal
     l_n = np.mean(np.median(hdu.data[s_r], axis=0) - bias_mean_row)
-    logging.debug('l_n=%10.6g', l_n)
+    logging.debug("l_n=%10.6g", l_n)
     # deferred charge is avg of sum of ecols above bias
     l_nn = np.mean((hdu.data[e_r] - bias_mean_row).sum(axis=0))
-    logging.debug('l_nn=%10.6g', l_nn)
+    logging.debug("l_nn=%10.6g", l_nn)
     if l_n > 0.0:
         eper = 1 - (l_nn / (nrows * l_n))
         return eper
@@ -434,13 +522,13 @@ def tearing_metric(buf, trows):
     # left side
     arr = np.mean(buf[10:trows, 3:50], axis=1)
     astd = np.std(buf[10:trows, 3:50], axis=1)
-    arr = np.abs((1.0*buf[10:trows, 0] - arr)/astd)  # col[0] diff in std's
-    tml = (1.0*np.size(arr) - np.searchsorted(arr, 1.5))/np.size(arr)
+    arr = np.abs((1.0 * buf[10:trows, 0] - arr) / astd)  # col[0] diff in std's
+    tml = (1.0 * np.size(arr) - np.searchsorted(arr, 1.5)) / np.size(arr)
     # right side
     arr = np.mean(buf[10:trows, -50:-3], axis=1)
     astd = np.std(buf[10:trows, -50:-3], axis=1)
-    arr = np.abs((1.0*buf[10:trows, -1] - arr)/astd)  # col[-1] diff
-    tmr = (1.0*np.size(arr) - np.searchsorted(arr, 1.5))/np.size(arr)
+    arr = np.abs((1.0 * buf[10:trows, -1] - arr) / astd)  # col[-1] diff
+    tmr = (1.0 * np.size(arr) - np.searchsorted(arr, 1.5)) / np.size(arr)
     return (tml, tmr)
 
 
@@ -455,15 +543,14 @@ def count_dipoles(buf):
     -- count them
     """
     (nrows, ncols) = np.shape(buf)
-    logging.debug('count_dipoles():using subarray [%s:%s,:]',
-                  -int(nrows/10), -1)
-    arr = buf[-int(nrows/10):-1, :].flatten('F')
+    logging.debug("count_dipoles():using subarray [%s:%s,:]", -int(nrows / 10), -1)
+    arr = buf[-int(nrows / 10) : -1, :].flatten("F")
     avg, med, std = stats.sigma_clipped_stats(arr)
-    logging.debug('clipped stats: avg:%.3g med:%s stdev:%.3g', avg, med, std)
-    arr = (arr - avg)/std
+    logging.debug("clipped stats: avg:%.3g med:%s stdev:%.3g", avg, med, std)
+    arr = (arr - avg) / std
     ndipole = 0
     for i in range(0, np.size(arr) - 1):
-        if (np.sign(arr[i+1] * arr[i]) == -1) and abs(arr[i+1] - arr[i]) > 5:
+        if (np.sign(arr[i + 1] * arr[i]) == -1) and abs(arr[i + 1] - arr[i]) > 5:
             ndipole += 1
     return ndipole
 
@@ -474,5 +561,5 @@ def ncalls():
     ncalls.counter += 1
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

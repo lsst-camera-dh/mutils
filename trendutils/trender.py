@@ -937,6 +937,9 @@ def main():
                             logging.debug("regex_map[%s] matches %s", regex, path)
                             axcnt = regex_map[regex][unit]
                             chid_matched = True
+                            logging.debug(
+                                "using axcnt=%d for regex_map[%s]", axcnt, regex
+                            )
                     if not chid_matched:
                         logging.error("no regex match found for %s", path)
                 else:
@@ -951,6 +954,7 @@ def main():
                     axcnt = 0
                 #
                 # now set up this axis
+                logging.debug("using axcnt=%d", axcnt)
                 ax = np.ravel(axes)[axcnt]
                 rowid = int(axcnt / ncols)
                 colid = int(axcnt % ncols)
