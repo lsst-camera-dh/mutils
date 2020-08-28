@@ -27,6 +27,7 @@ try:
     import trendutils as tu
     import mutils as mu
     import plotutils as pu
+    from lsst_camera_data import rafts_of_type
 except ImportError as e:
     logging.error("Import failed: %s", e)
     sys.exit(1)
@@ -66,8 +67,8 @@ def parse_args():
         multiple output runs (stats, plots, etc.) using the same trending
         data w/out re-querying the server.
 
-        The "channel_source"(s) are either files or patterns (re's).  Files
-        are best constructed using the sibling application
+        The "channel_source"(s) are either all files or all patterns (re's).
+        Files are best constructed using the sibling application
         "trendingChannels.py" and editing the resuling files to choose
         which channels to activate.  Patterns (regex's) are most useful for
         interactive use.  The "--match" option supports checking which
@@ -84,10 +85,13 @@ def parse_args():
     )
     # Input args
     parser.add_argument(
-        "channel_source", nargs="+", help="ListFile|Regex specifying channels to report"
+        "channel_source", nargs="+", help="filename|regex specifying channels"
     )
     parser.add_argument(
         "--input_file", nargs="+", help="XML file with trending data, =>no db query"
+    )
+    parser.add_argument(
+        "--reject", nargs="+", help="filename|regex providing channels to reject"
     )
     #
     # Output options for text based outputs
@@ -229,7 +233,7 @@ def parse_args():
         const=0,
         type=int,
         metavar="nBins (blank for autosize)",
-        help="plot time avg'd bins (esp for long durations)",
+        help="retrieve and plot time avg'd bins (esp for long durations)",
     )
     parser.add_argument(
         "--sharex",
@@ -246,7 +250,11 @@ def parse_args():
     parser.add_argument(
         "--debug", action="store_true", help="Print additional debugging info"
     )
-    parser.add_argument("--mjd", action="store_true", help="Plot on MJD time axis")
+    parser.add_argument("--itl", action="store_true", help="limit to ITL devices")
+    parser.add_argument("--e2v", action="store_true", help="limit to E2V devices")
+    parser.add_argument("--science", action="store_true", help="limit to science rafts")
+    parser.add_argument("--corner", action="store_true", help="limit to corner rafts")
+    parser.add_argument("--mjd", action="store_true", help="NA, use MJD time axis")
     parser.add_argument(
         "--forceupdate", action="store_true", help="Force update of cached channel file"
     )
@@ -277,113 +285,92 @@ def main():
     tmin = intervals[0][0]
     tmax = intervals[-1][1]
 
-    # set up the trending service
-    tsite = tu.get_trending_server(optlist.site)
-    if tsite["server"]:
-        data_url = "http://{}:{}/rest/data/dataserver".format(
-            tsite["server"], tsite["port"]
+    # set up the trending source(chached-on-disk, slac, base, summit etc.)
+    if not optlist.input_file:
+        tsite = tu.get_trending_server(optlist.site)
+        if tsite and tsite["server"]:
+            data_url = "http://{}:{}/rest/data/dataserver".format(
+                tsite["server"], tsite["port"]
+            )
+        else:
+            logging.error("failed to determine trending server")
+            sys.exit(1)
+        logging.debug(
+            "site: %s server: %s port: %d timezone: %s",
+            tsite["name"],
+            tsite["server"],
+            tsite["port"],
+            tsite["tz"],
         )
-    else:
-        logging.error("failed to contact trending server")
-        sys.exit(1)
-    logging.debug(
-        "site: %s server: %s port: %d timezone: %s",
-        tsite["name"],
-        tsite["server"],
-        tsite["port"],
-        tsite["tz"],
-    )
 
-    # from https://stackoverflow.com/questions/16710076
-    # regex to split a string preserving quoted fields
-    #
-    rpat = re.compile(
-        r"""
-                      (?:[^\s"']+)|    # match non-delimiter
-                      "(?:\\.|[^"]*)"| # match double quoted
-                      '(?:\\.|[^']*)'  # match single quoted
-                      """,
-        re.X,
-    )
+        # access the file with the channel list and update if needed
+        if optlist.forceupdate:
+            channel_file = tu.update_trending_channels_xml(tsite["name"])
+        else:
+            channel_file = tu.update_trending_channels_xml(
+                tsite["name"], tmin / 1000, tmax / 1000
+            )
+    else:  # get site and data from input file
+        logging.debug("using input file")
+        # input xml file => site is in file
+        tu.initialize_chid_dictionary(optlist.input_file)
+        channel_file = None
+        pass
 
-    # loop over input sources to define the channels for query/output
-    # 2 exclusive choices:
-    #     1.) a file with 3 fields per line (after comment removal) where
-    #         the line format is '^[01]\s+<CCS path>\s+<channel_id>'
-    #     2.) a pattern that can be matched against the cached full list of
-    #         channels in ~/.trender/listchannels.xml
-    #
-    # After evaluating input, channels needed are stored in "oflds" dict
-    # oflds[channel_id_num] = trending_full_path
-    # eg: oflds[2372] = aliveness-raft/R00.Reb2.RGL
-    #
+    # construct the dict of input channels as {id:path} and store regexes as list
     oflds = dict()  # dict to hold channel information
     regexes = []
-    #
-    channel_source_type = None
-    chid_dict = None
-    channel_file = None
-    for csource in optlist.channel_source:
-        logging.debug("channel_source= %s", csource)
-        #  test to determine type of channel_source
-        #
-        if channel_source_type == "file" or not channel_source_type:
-            logging.debug("test for formatted input file...")
-            try:
-                cf = open(csource, mode="r")
-            except OSError as e:
-                logging.debug("open(%s) failed: %s", csource, e)
+    oflds, regexes = tu.parse_channel_sources(optlist.channel_source, channel_file)
+    if oflds:
+        logging.debug("found %d channels", len(oflds))
+    else:
+        logging.error("no valid sources found")
+        sys.exit(1)
+    if regexes:
+        logging.debug("found %d regexes with valid channels", len(regexes))
+
+    # remove channels on the reject list (eg bad RTDs etc)
+    rflds, rregexes = tu.parse_channel_sources(optlist.reject, channel_file)
+    if rflds:
+        logging.debug("found %d channels to reject", len(rflds))
+        for rid in rflds.keys():
+            if rid in oflds.keys():
+                removed = oflds.pop(rid)
+                logging.debug("removing %s from channels to process", removed)
             else:
-                # populate oflds[id] with the corresponding channel path
-                for line in cf:
-                    if re.match(r"^\s*#", line):  # skip block comment
-                        continue
-                    if re.match(r"^\s*$", line):  # skip white space line
-                        continue
-                    # strip inline cmnt
-                    sline = re.sub(r"""(#[^\'^"]*$)""", "", line)
-                    # tokenize what remains
-                    flds = ["".join(t) for t in rpat.findall(sline)]
-                    if len(flds) != 3:
-                        logging.warning("bad input line: %s", line)
-                        continue
-                    if int(flds[0]) == 1:
-                        oflds[flds[2]] = flds[1]  # oflds[id] = path
-                cf.close()
-            if oflds:  # only set if some lines were good
-                channel_source_type = "file"
+                logging.debug("NOT removing %s from channels to process", rflds[rid])
+        logging.debug("%d channels remaining", len(oflds))
 
-        if channel_source_type == "pattern" or not channel_source_type:
-            logging.debug("eval pattern for matching channels...")
-            if not channel_file:
-                if optlist.forceupdate:
-                    channel_file = tu.update_trending_channels_xml(tsite["name"])
-                else:
-                    channel_file = tu.update_trending_channels_xml(
-                        tsite["name"], tmin / 1000, tmax / 1000
-                    )
+    # filter on E2V, ITL, science, corner by removing other types
+    rafts_to_reject = []
+    if optlist.e2v:
+        rafts_to_reject.extend(rafts_of_type["ITL"])
+    if optlist.itl:
+        rafts_to_reject.extend(rafts_of_type["E2V"])
+    if optlist.science:
+        rafts_to_reject.extend(rafts_of_type["CORNER"])
+    if optlist.corner:
+        rafts_to_reject.extend(rafts_of_type["SCIENCE"])
+    if rafts_to_reject:
+        rids = []
+        for chid in oflds:  # loop over paths
+            logging.debug("id= %5d  path= %s", int(chid), oflds[chid])
+            for raft in set(rafts_to_reject):  # loop over rafts of type
+                logging.debug("raft to reject = %s", raft)
+                if re.search(f"/{raft}/", oflds[chid]):
+                    rids.append(chid)
+                    logging.debug("adding %s to channels to reject", oflds[chid])
+                    break
+            else:
+                logging.debug("NOT adding %s to channels to reject", oflds[chid])
+        for rid in rids:
+            oflds.pop(rid)
+    logging.debug("%d channels remaining", len(oflds))
 
-            if not chid_dict:
-                chid_dict = tu.get_channel_dict(channel_file)
-
-            # add csource as a new parameter in oflds[csource][chid]?
-            # search the entire catalog for each pattern, this may be slow
-            cpat = re.compile(csource)
-            for chid in chid_dict:
-                if cpat.search(chid_dict[chid]):
-                    oflds[chid] = chid_dict[chid]
-                    #  oflds[csource][chid] = chid_dict[chid]
-
-            if oflds:
-                channel_source_type = "pattern"
-                regexes.append(csource)
-
-    del chid_dict
-    # end of loop over input sources to define the channels for query/output
     # now have info needed to query the CCS trending db
 
     if optlist.match:
-        print("Found matching channels:")
+        print("#--- Found matching channels:")
         for chid in oflds:
             print("   id: {}  path: {}".format(chid, oflds[chid]))
         sys.exit(0)
@@ -395,11 +382,11 @@ def main():
     #  Get the trending data either from local saved files or via
     #  trending db queries to the rest service
     if optlist.input_file:
-        # get input from these files rather than trending service
+        # get input from files rather than trending service
         # an issue is that the input file need not have the
         # same set of channels or time intervals as requested on command line.
-        # We expect to apply the intervals to the output only by taking
-        # only times in the intersection.  Up to user to use valid file.
+        # The output time intervals will be restricted to the intersection
+        # of the intervals present in the input files.
         responses = []
         parser = etree.XMLParser(remove_blank_text=True)
         for ifile in optlist.input_file:
@@ -430,24 +417,34 @@ def main():
             del tree
 
     else:
-        # TODO fix the timebins to match CCS actual api
-        # query the rest server query and place responses into a list
+        # CCS is pre-binned at 5m, 30m, or will rebin on-the-fly
+        # default is raw data, timebins triggers stat data
+        # query the rest server and place responses into a list
         # join the ids requested as "id0&id=id1&id=id2..." for query
         idstr = "&id=".join(id for id in oflds)
         responses = []
-        for ival in intervals:  # only one interval per query allowed
-            if optlist.timebins == 0:  # autosize it
+        timebins = 0
+        nbins = 0
+        if optlist.timebins == 0:  # autosize it
+            for ival in intervals:  # only one interval per query allowed
                 logging.debug("timebins=0")
-                if int((ival[1] - ival[0]) / 1000) < 300:  # just get raw data
-                    logging.debug("ival[1]= %d, ival[0]= %d", ival[1], ival[0])
-                    optlist.timebins = None
-                else:
-                    logging.debug("ival[1]= %d, ival[0]= %d", ival[1], ival[0])
-                    optlist.timebins = int(((ival[1] - ival[0]) / 1000.0) / 60.0)
-                    logging.debug("timebins= %d", optlist.timebins)
-            res = tu.query_rest_server(
-                ival[0], ival[1], data_url, idstr, optlist.timebins
-            )
+                logging.debug("ival[1]= %d, ival[0]= %d", ival[1], ival[0])
+                if int((ival[1] - ival[0]) / 1000 / 60) < 5:  # <5m => raw data
+                    timebins = None
+                elif int((ival[1] - ival[0]) / 1000 / 3600) < 10:  # <10h => 1m bins
+                    timebins = int(((ival[1] - ival[0]) / 1000.0) / 60.0)
+                elif int((ival[1] - ival[0]) / 1000 / 3600) < 50:  # <50h => 5m bins
+                    timebins = int(((ival[1] - ival[0]) / 1000.0) / 300.0)
+                else:  # 30m bins
+                    timebins = int(((ival[1] - ival[0]) / 1000.0) / 1800.0)
+                logging.debug("timebins= %d", timebins)
+                if timebins and nbins < timebins:
+                    nbins = timebins
+        else:
+            nbins = optlist.timebins  # is None or an integer
+
+        for ival in intervals:  # only one interval per query allowed
+            res = tu.query_rest_server(ival[0], ival[1], data_url, idstr, nbins)
             responses.append(res)
     # Now have the data from trending service
 
@@ -791,11 +788,11 @@ def main():
                     "{:>6g} {:>8.4g} {:>8.4g} {:>8.4g} ".format(nelem, avg, med, std,),
                     end="",
                 )
-                print("{:>8.3g} {:>8.3g} ".format(npmin, npmax), end="")
-                print("{:>11.2g} ".format(grad), end="")
+                print("{:>8.4g} {:>8.4g} ".format(npmin, npmax), end="")
+                print("{:>11.3g} ".format(grad), end="")
                 if optlist.rstats:
                     print(
-                        "{:>8.3g} {:>8.3g} {:>8.2g}   ".format(rmean, rmedian, rstd),
+                        "{:>8.4g} {:>8.4g} {:>8.4g}   ".format(rmean, rmedian, rstd),
                         end="",
                     )
                 print("{:<{wt}s} {:>{wu}s}".format(path, unitstr, wt=40, wu=6))
@@ -1175,7 +1172,7 @@ def main():
 
         if optlist.saveplot:
             fig.savefig(
-                "{}-{}.pdf".format(optlist.saveplot[0], xlabel_str[:25]), dpi=300
+                "{}-{}.pdf".format(optlist.saveplot[0], xlabel_str[:25]), dpi=600
             )
         plt.show()
 

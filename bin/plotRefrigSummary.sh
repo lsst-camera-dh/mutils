@@ -15,11 +15,12 @@ exit 1
 #-- process commandline options
 #
 duration=
-while getopts "hd:" Option
+while getopts "htd:" Option
 do
   case $Option in
     h  ) usage;;
     d  ) duration=$OPTARG;;
+    t  ) timebins="yes";;
     *  ) ${ECHO} "Unimplemented option chosen.";;   # Default.
   esac
 done
@@ -36,24 +37,27 @@ else
 fi
 
 declare -a regexes
-regexes[0]='^[rh].*[xg]/Cold1/(.*Cooling$|.*Heat$)' 
-regexes[1]='^[rh].*[xg]/Cold2/(.*Cooling$|.*Heat$)'
-regexes[2]='^refrig/Cold1/(.*Tmp_M$|[^A^C].*Tmp$)'
-regexes[3]='^refrig/Cold2/(.*Tmp_M$|[^A^C].*Tmp$)' 
-regexes[4]='^hex/Cold1/.*Tmp'
-regexes[5]='^hex/Cold2/.*Tmp'
-regexes[6]='^[hr].*[xg]/Cold./(Supply|Dischrg).*Prs'
-regexes[7]='^[hr].*[xg]/Cold./(Suction|Return).*Prs'
-regexes[8]='^[rf].*/Cold./CompPower$'
-regexes[9]='^[tf].*[es]/(ColdTotal_P$|CryoTotal_P$|RebTotalPower$)'
-regexes[10]='^thermal/Cold_Temp/CLP-RTD-..'
-regexes[11]='^thermal/Cryo_Temp/CYP-RTD-.[24]'
-regexes[12]="refrig/Cold./HGBValvePosn"
-regexes[13]="refrig/Cold./CoolValvePosn"
-
+regexes+=('^[rh].*[xg]/Cold1/(.*Cooling$|.*Heat$)')
+regexes+=('^[rh].*[xg]/Cold2/(.*Cooling$|.*Heat$)')
+regexes+=('^hex/Cold1/.*Tmp')
+regexes+=('^hex/Cold2/.*Tmp')
+regexes+=('^thermal/Cold_Temp/CLP-RTD-..')
+regexes+=('^thermal/Cryo_Temp/CYP-RTD-.[24]')
+regexes+=('^refrig/Cold1/([^D].*Tmp_M$|[^A^C].*Tmp$)')
+regexes+=('^refrig/Cold2/([^D].*Tmp_M$|[^A^C].*Tmp$)')
+regexes+=('^[hr].*[xg]/Cold./(Supply|Dischrg).*Prs')
+regexes+=('^[hr].*[xg]/Cold./(Suction|Return).*Prs')
+regexes+=('^refrig/Cold./CompPower$')
+regexes+=('^[tf].*[le]/.*(ColdTotal_P$|CryoTotal_P$|RebTotalPower$)')
+regexes+=('^refrig/Cold./.*ValvePosn')
+regexes+=('^refrig/Cold./CoolFlowRate')
 
 if [ $duration"XXX" == "XXX" ] ; then
       duration=10m
 fi
 
-trender.py ${st} --dur $duration --title "Refrig Summary" --plot --layout 7x2 --outside --overlayregex -- "${regexes[@]}"
+if [ $timebins ] ; then
+      timebins='--timebins'
+fi
+
+trender.py ${st} --dur ${duration} ${timebins} --title "Refrig Summary" --plot --layout 7x2 --outside --overlayregex -- "${regexes[@]}"

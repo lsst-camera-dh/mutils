@@ -23,6 +23,10 @@ from timezone_info import timezone_abbr
 # tz_trending = "America/Los_Angeles"
 default_req_timeout = 5  # used by requests.*
 
+#  module level dict mapping integer id's to string channel paths
+# chid_dict = {"key": "value"}
+chid_dict = dict()
+
 # set up known sites for CCS restful servers
 # atsccs1.cp.lsst.org has address 139.229.170.33
 # ccs-db01.cp.lsst.org has address 139.229.174.2
@@ -61,9 +65,19 @@ sites["comcam"]["tz"] = "UTC"
 #
 # this should be last and matches anything else
 # requires a local db or ssh tunnel to the actual server
+priv_pat = re.compile(
+    r"""
+    (^127\.)|(^10\.)|(^172\.1[6-9]\.)|
+    (^172\.2[0-9]\.)|(^172\.3[0-1]\.)|(^192\.168\.)
+    """,
+    re.X,
+)
 sites["localhost"] = dict()
 sites["localhost"]["name"] = "localhost"
+# match any address
 sites["localhost"]["netregex"] = r"[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+"
+# match only private addresses
+# sites["localhost"]["netregex"] = priv_pat
 sites["localhost"]["server"] = "localhost"
 sites["localhost"]["port"] = 8080
 sites["localhost"]["tz"] = gettz().tzname(datetime.now())
@@ -186,7 +200,79 @@ def get_time_interval(startstr, stopstr, duration=None):
     return (t1, t2)
 
 
-def get_trending_server(site: str = None):
+def get_trending_server(isite: str = None):
+    """
+    The trending server is one of several in list of sites.
+    The default ip address used to access google is checked and
+    if it matches one of the known site networks, the server is
+    obtained from the list.  If it does not match then the assumption
+    is that localhost:8080 is connected via an ssh tunnel and we use that.
+
+    returns dict for trending service
+    """
+    global site
+    if isite:
+        site = isite
+
+    if not site:  # try to infer from local network address
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))  # connect to google dns server
+        res = None
+        for ssite in sites:  # break if match
+            logging.debug("checking site = %s", ssite)
+            res = re.search(sites[ssite]["netregex"], s.getsockname()[0])
+            logging.debug(
+                "res = re.search(%s, %s)", sites[ssite]["netregex"], s.getsockname()[0]
+            )
+            logging.debug("res = %s", res)
+            if res:
+                logging.debug("using site = %s", ssite)
+                site = ssite
+                break
+        s.close()
+
+    if not site:
+        logging.error("unable to infer trending server from network, no site given")
+        return None
+
+    trending_server = sites[site]["server"]
+    trending_port = sites[site]["port"]
+    trending_tz = sites[site]["tz"]
+    logging.debug(
+        "using site: %s: server: %s port: %s tz: %s",
+        site,
+        trending_server,
+        trending_port,
+        trending_tz,
+    )
+    return sites[site]
+
+
+def get_trending_server_from_xml(xmlfile: str):
+    """
+    The trending server is one of several in list of sites.
+    The default ip address used to access google is checked and
+    if it matches one of the known site networks, the server is
+    obtained from the list.  If it does not match then the assumption
+    is that localhost:8080 is connected via an ssh tunnel and we use that.
+
+    returns dict for trending service
+    """
+    global site
+    trending_server = sites[site]["server"]
+    trending_port = sites[site]["port"]
+    trending_tz = sites[site]["tz"]
+    logging.debug(
+        "using site: %s: server: %s port: %s tz: %s",
+        site,
+        trending_server,
+        trending_port,
+        trending_tz,
+    )
+    return sites[site]
+
+
+def test_trending_server(site: str):
     """
     The trending server is one of several in list of sites.
     The default ip address used to access google is checked and
@@ -196,21 +282,6 @@ def get_trending_server(site: str = None):
 
     returns valid service or None on failure
     """
-    if not site:  # try to infer from local network address
-        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        s.connect(("8.8.8.8", 80))  # connect to google dns server
-        res = None
-        for site in sites:  # break if match
-            logging.debug("site = %s", site)
-            res = re.search(sites[site]["netregex"], s.getsockname()[0])
-            logging.debug(
-                "res = re.search(%s, %s)", sites[site]["netregex"], s.getsockname()[0]
-            )
-            logging.debug("res = %s", res)
-            if res:
-                break
-        s.close()
-
     trending_server = sites[site]["server"]
     trending_port = sites[site]["port"]
     trending_tz = sites[site]["tz"]
@@ -228,9 +299,8 @@ def get_trending_server(site: str = None):
     except requests.ConnectionError as e:
         logging.error("ConnectionError: %s", e)
         logging.error("check status connection to trending server: %s", trending_server)
-        return None, None, None, None
-    #  return site, trending_server, trending_port, trending_tz
-    return sites[site]
+        return False
+    return True
 
 
 def geturi(uri):
@@ -383,6 +453,12 @@ def update_trending_channels_xml(site, tstart=None, tstop=None):
             xstart = int(time.time() - maxidle)
         xmlstring = get_all_channels(site, maxidle)
         root = etree.fromstring(xmlstring)
+        #  attributes in channel_file are from datachannels tag
+        #  <datachannels
+        #      activeSinceDate="2020-08-21T11:22:35.241-07:00"
+        #      host="134.79.209.38"
+        #      port="8080">
+        #
         active_since = root.attrib.get("activeSinceDate")
         if not active_since:  # needed until service adds this attrib
             active_since_str = datetime.fromtimestamp(
@@ -452,7 +528,7 @@ def query_rest_server(ts1, ts2, data_url, idstr, nbins):
            t1, t2 are start/stop time in ms
            data_url is "server-url:port/default-path"
            idstr is all channel ids as '&id='.join(id for id in oflds)
-           nbins: request raw or binned data from DB
+           nbins: request raw (=None) or binned data from DB
        output: raw xml response from the service is returned
     """
     s = requests.Session()
@@ -578,3 +654,174 @@ def get_channel_dict(channel_file):
     logging.debug("channel dict contains %d active channels", len(cdict))
     del tree
     return cdict
+
+
+def parse_channel_sources(sources: list, channel_cache: str) -> tuple:
+    """
+    Convert list of sources to channels to process
+    The sources list
+       inputs:
+           sources is a list of either filenames or regular expressions
+           channel_cache is the filename where the channel id map is cached
+       output:
+           fields dict in form {id:path}
+           regexes list of regexes from sources that had matching channels
+    """
+    if not sources:
+        return None, None
+
+    oflds_f = get_chanids_from_files(sources)
+    if oflds_f:
+        logging.debug("found %d valid channels from input files", len(oflds_f))
+        return oflds_f, None
+
+    oflds_r, regexes = get_chanids_from_regexes(sources, channel_cache)
+    if oflds_r:
+        logging.debug("found valid channels from channel patterns")
+        return oflds_r, regexes
+
+    return None, None
+
+
+def get_chanids_from_files(filelist: list) -> dict:
+    """
+    Convert list of sources to channels to process
+    The sources list
+       inputs:
+           sources is a list of either filenames or regular expressions
+       output:
+           fields dict in form {id:path}
+    """
+    # loop over input sources to define the channels for query/output
+    # using a file with 4 fields per line (after comment removal) where
+    # the line format is '\s+id:\s+<chan_id>\s+path:\s+<path>$'
+    # example: " id: 15176  path: focal-plane/R22/Reb0/Temp3"
+    #
+    # After evaluating input, channels needed are stored in "oflds" dict
+    # oflds[channel_id_num] = trending_full_path
+    # eg: oflds[2372] = aliveness-fp/R00/Reb2/RGL
+    #
+    #
+    # from https://stackoverflow.com/questions/16710076
+    # regex to split a string preserving quoted fields
+    #
+    rpat = re.compile(
+        r"""
+        (?:[^\s"']+)|    # match non-delimiter
+        "(?:\\.|[^"]*)"| # match double quoted
+        '(?:\\.|[^']*)'  # match single quoted
+        """,
+        re.X,
+    )
+
+    oflds = dict()
+    for csource in filelist:
+        logging.debug("channel_source= %s", csource)
+        #  test to determine type of channel_source
+        #
+        logging.debug("test for formatted input file...")
+        try:
+            cf = open(csource, mode="r")
+        except OSError as e:
+            logging.debug("open(%s) failed: %s", csource, e)
+            return None
+        else:
+            # populate oflds[id] with the corresponding channel path
+            for line in cf:
+                if re.match(r"^\s*#", line):  # skip block comment
+                    continue
+                if re.match(r"^\s*$", line):  # skip white space line
+                    continue
+                # strip inline cmnt
+                sline = re.sub(r"""(#[^\'^"]*$)""", "", line)
+                # tokenize what remains
+                flds = ["".join(t) for t in rpat.findall(sline)]
+                if len(flds) != 4:
+                    logging.warning("bad input line: %s", line)
+                    continue
+                # example: " id: 15176  path: focal-plane/R22/Reb0/Temp3"
+                if flds[1].isdigit():
+                    oflds[flds[1]] = flds[3]  # oflds[id] = path
+                else:
+                    logging.warning("%s failed integer conversion", flds[1])
+            cf.close()
+    return oflds
+
+
+def get_chanids_from_regexes(sources: list, channel_cache: str) -> tuple:
+    """
+    Convert list of sources to channels to process
+    The sources list
+       inputs:
+           sources is a list of either filenames or regular expressions
+           channel_cache is the filename where the channel id map is cached
+       output:
+           fields dict in form {id:path}
+           regexes list of regexes from sources that had matching channels
+    """
+    logging.debug("dir()={}".format(dir()))
+    global chid_dict
+    oflds = dict()
+    regexes = []
+    for csource in sources:
+        logging.debug("channel_source= %s", csource)
+        #  test to determine type of channel_source
+        #
+        logging.debug("eval pattern for matching channels...")
+        if not chid_dict:
+            logging.debug("initializing channel id:path dictionary")
+            chid_dict = get_channel_dict(channel_cache)
+        else:
+            logging.debug("reusing existing channel id:path dictionary")
+
+        # add csource as a new parameter in oflds[csource][chid]?
+        # search the entire catalog for each pattern, this may be slow
+        cpat = re.compile(csource)
+        for chid in chid_dict:
+            if cpat.search(chid_dict[chid]):
+                oflds[chid] = chid_dict[chid]
+
+        regexes.append(csource)
+
+    return oflds, regexes
+
+
+def initialize_chid_dictionary(input_files: list):
+    """
+    Initialize chid_dict using input data file
+    The sources list
+       inputs:  xml file(s) with trending data
+       returns: none
+       outcome: construct the module level dict() chid_dict
+                mapping channel ids -> channel paths
+
+    build a channel dictionary for all channels
+    structure of input data xml file is:
+    0: datas [-]
+    1: data [id, path]
+        2: trendingresult [-]
+            3: channelmetadata [-]
+                4: channelmetadatavalue [tstart, tstop, name, value]
+            3: trendingdata [-]
+                4: datavalue [name, value]
+                4: axisvalue [name, value, loweredge, upperedge]
+    """
+    global chid_dict
+    logging.debug("initializing id:path dict from input data (xml) files")
+    for ifile in input_files:
+        logging.debug("ifile= %s", ifile)
+        try:
+            iff = open(ifile, mode="r")
+        except OSError as e:
+            logging.debug("open(%s) failed: %s", ifile, e)
+            return
+        else:
+            root = etree.fromstring(iff)
+            for data in root.iter("data"):
+                chid = data.attrib.get("id")
+                path = data.attrib.get("path")
+                if chid and path:
+                    chid_dict[chid] = path
+        ifile.close()
+
+    logging.debug("channel dict contains %d active channels", len(chid_dict))

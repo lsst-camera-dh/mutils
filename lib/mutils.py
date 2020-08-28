@@ -11,20 +11,18 @@ def init_logging(debug):
     """ Set up debug and info level logging
     """
     if debug:
-        logging.basicConfig(format='%(levelname)s: %(message)s',
-                            level=logging.DEBUG)
+        logging.basicConfig(format="%(levelname)s: %(message)s", level=logging.DEBUG)
     else:
-        logging.basicConfig(format='%(levelname)s: %(message)s',
-                            level=logging.INFO)
+        logging.basicConfig(format="%(levelname)s: %(message)s", level=logging.INFO)
     # suppress plotting debug messages
-    mpl_logger = logging.getLogger('matplotlib')
+    mpl_logger = logging.getLogger("matplotlib")
     mpl_logger.setLevel(logging.WARNING)
 
 
 def init_warnings():
     """ Block warnings from Astropy
     """
-    warnings.simplefilter('ignore', category=AstropyWarning)
+    warnings.simplefilter("ignore", category=AstropyWarning)
 
 
 def long_substr(ilist: list) -> str:
@@ -35,12 +33,12 @@ def long_substr(ilist: list) -> str:
     https://stackoverflow.com/questions/2892931/\
         longest-common-substring-from-more-than-two-strings-python#
     """
-    sstr = ''
+    sstr = ""
     if len(ilist) > 1 and len(ilist[0]) > 0:
         for i in range(len(ilist[0])):
-            for j in range(len(ilist[0])-i+1):
-                if j > len(sstr) and all(ilist[0][i:i+j] in x for x in ilist):
-                    sstr = ilist[0][i:i+j]
+            for j in range(len(ilist[0]) - i + 1):
+                if j > len(sstr) and all(ilist[0][i : i + j] in x for x in ilist):
+                    sstr = ilist[0][i : i + j]
     return sstr
 
 
@@ -67,8 +65,9 @@ def cleave(arr: list, substr: str) -> (list, list):
     return (pre_arr, post_arr)
 
 
-def get_lcs_array(s_arr: list,  ss_arr: list, index: int,
-                  order: str, minsz: int) -> list:
+def get_lcs_array(
+    s_arr: list, ss_arr: list, index: int, order: str, minsz: int
+) -> list:
     """
     Create ordered list of common substrings for list of strings.
 
@@ -89,12 +88,12 @@ def get_lcs_array(s_arr: list,  ss_arr: list, index: int,
     minsz: int Shortest allowed common substring.
     """
 
-    logging.debug('get_lcs_array() on entry: s_arr=%s', s_arr)
-    logging.debug('get_lcs_array() on entry: index=%d', index)
-    logging.debug('get_lcs_array() on entry: order=%s', order)
+    logging.debug("get_lcs_array() on entry: s_arr=%s", s_arr)
+    logging.debug("get_lcs_array() on entry: index=%d", index)
+    logging.debug("get_lcs_array() on entry: order=%s", order)
     s_arr_length = len(s_arr)
     lcstr = long_substr(s_arr)  # get longest common substring
-    logging.debug('lcstr=%s', lcstr)
+    logging.debug("lcstr=%s", lcstr)
     if len(lcstr) >= minsz:
         if not ss_arr:  # first pass when ss_arr is None
             ss_arr.append(lcstr)
@@ -112,12 +111,11 @@ def get_lcs_array(s_arr: list,  ss_arr: list, index: int,
                     logging.debug("after: appending %s", lcstr)
                     ss_arr.append(lcstr)
                 else:
-                    logging.debug(
-                        "after: inserting %s at index=%d", lcstr, -1 * index)
+                    logging.debug("after: inserting %s at index=%d", lcstr, -1 * index)
                     ss_arr.insert(-1 * index, lcstr)
                 logging.debug("after: final ss_arr=%s", ss_arr)
             else:
-                logging.error('invalid order %s', order)
+                logging.error("invalid order %s", order)
                 exit(1)
     else:
         return
@@ -131,18 +129,18 @@ def get_lcs_array(s_arr: list,  ss_arr: list, index: int,
         else:
             pre_index = index
         logging.debug(
-            'calling get_lcs_array(pre_arr, ss_arr, index=%d, before)',
-            pre_index)
-        get_lcs_array(pre_arr, ss_arr, pre_index, 'before', minsz)
+            "calling get_lcs_array(pre_arr, ss_arr, index=%d, before)", pre_index
+        )
+        get_lcs_array(pre_arr, ss_arr, pre_index, "before", minsz)
     if post_arr and len(post_arr) == s_arr_length:
         if order == "before":
             post_index = len(ss_arr) - index - 1
         else:
             post_index = index
         logging.debug(
-            'calling get_lcs_array(post_arr, ss_arr, index=%d, after)',
-            post_index)
-        get_lcs_array(post_arr, ss_arr, post_index, 'after', minsz)
+            "calling get_lcs_array(post_arr, ss_arr, index=%d, after)", post_index
+        )
+        get_lcs_array(post_arr, ss_arr, post_index, "after", minsz)
 
 
 def mkglob(fullpaths: list, trim=False) -> str:
@@ -168,9 +166,9 @@ def mkglob(fullpaths: list, trim=False) -> str:
         # title is longest common substring array
         # joined with *'s to look like a glob pattern
         ss_arr = []
-        get_lcs_array(string_list, ss_arr, 0, '', 2)
+        get_lcs_array(string_list, ss_arr, 0, "", 2)
         if ss_arr:
-            glob = "{}".format('*'.join(ss_arr))
+            glob = "{}".format("*".join(ss_arr))
             if not re.match(ss_arr[0], string_list[0]):
                 glob = "*{}".format(glob)
             if not re.search(r"{}$".format(ss_arr[-1]), string_list[0]):
@@ -185,19 +183,22 @@ def tok_line(line: str) -> list:
     # from https://stackoverflow.com/questions/16710076
     # regex to split a string preserving quoted fields
     #
-    rpat = re.compile(r"""             #
+    rpat = re.compile(
+        r"""             #
                       (?:[^\s"']+)|    # match non-delimiter
                       "(?:\\.|[^"]*)"| # match double quoted
                       '(?:\\.|[^']*)'  # match single quoted
-                      """, re.X)
+                      """,
+        re.X,
+    )
     if re.match(r"^\s*#", line):  # skip block comment
         return []
     if re.match(r"^\s*$", line):  # skip white space line
         return []
     # strip inline cmnt
-    sline = re.sub(r"""(#[^\'^"]*$)""", '', line)
+    sline = re.sub(r"""(#[^\'^"]*$)""", "", line)
     # tokenize what remains
-    return [''.join(t) for t in rpat.findall(sline)]
+    return ["".join(t) for t in rpat.findall(sline)]
 
 
 def file_to_tokens(ifiles: list) -> list:
@@ -211,20 +212,23 @@ def file_to_tokens(ifiles: list) -> list:
     # derived from https://stackoverflow.com/questions/16710076
     # regex to split a string preserving quoted fields
     #
-    rpat = re.compile(r"""             #
+    rpat = re.compile(
+        r"""             #
                       (?:[^\s"]+)|    # match non-delimiter
                       (?<=\W)"(?:\\.|[^"]*)"(?=\W)| # match double quoted
                       (?<=\W)'(?:\\.|.*?)'(?=\W)  # match single quoted
-                      """, re.X)
+                      """,
+        re.X,
+    )
     #
     if not isinstance(ifiles, list):
         ifiles = [ifiles]
     #
     for ffile in ifiles:
         try:
-            ff = open(ffile, mode='r')
+            ff = open(ffile, mode="r")
         except OSError as e:
-            logging.debug('open(%s) failed: %s', ffile, e)
+            logging.debug("open(%s) failed: %s", ffile, e)
         else:
             for line in ff:
                 if re.match(r"^\s*#", line):  # skip block comment
@@ -232,7 +236,7 @@ def file_to_tokens(ifiles: list) -> list:
                 if re.match(r"^\s*$", line):  # skip white space line
                     continue
                 # strip inline cmnt '<space(s)># to end of line'
-                sline = re.sub(r"""(\s*#[^\'"]*$)""", '', line)
+                sline = re.sub(r"""(\s*#[^\'"]*$)""", "", line)
                 # tokenize what remains
-                yield [''.join(t) for t in rpat.findall(sline)]
+                yield ["".join(t) for t in rpat.findall(sline)]
             ff.close()

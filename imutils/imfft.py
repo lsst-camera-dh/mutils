@@ -16,7 +16,7 @@ import matplotlib.pyplot as plt
 
 # put parent directory into sys.path
 bp = os.path.dirname(os.path.realpath(__file__)).split(os.sep)
-modpath = os.sep.join(bp[:-1] + ['lib'])
+modpath = os.sep.join(bp[:-1] + ["lib"])
 sys.path.insert(0, modpath)
 
 #  local imports
@@ -24,7 +24,7 @@ try:
     import mutils as mu
     import imutils as iu
 except ImportError as e:
-    logging.error('Import failed: %s', e)
+    logging.error("Import failed: %s", e)
     sys.exit(1)
 
 
@@ -32,33 +32,57 @@ def parse_args():
     """handle command line"""
     parser = argparse.ArgumentParser(
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        description=textwrap.dedent('''\
+        description=textwrap.dedent(
+            """\
                                     Compute Image Noise Power Spectrum
-                                    '''),
-        epilog=textwrap.dedent('''\
-                               '''))
-    parser.add_argument("fitsfile", help="fits_image",
-                        metavar="file", nargs='+',)
-    parser.add_argument("--rt", type=int, default=1800,
-                        help="pixel read time (ns), default: %(default)s")
-    parser.add_argument("--row", default=10, type=int,
-                        help="starting image row, default: %(default)s")
-    parser.add_argument("--nrows", default=1, type=int,
-                        help="number of rows to average, default: %(default)s")
+                                    """
+        ),
+        epilog=textwrap.dedent(
+            """\
+                               """
+        ),
+    )
+    parser.add_argument(
+        "fitsfile", help="fits_image", metavar="file", nargs="+",
+    )
+    parser.add_argument(
+        "--rt",
+        type=int,
+        default=1800,
+        help="pixel read time (ns), default: %(default)s",
+    )
+    parser.add_argument(
+        "--row", default=10, type=int, help="starting image row, default: %(default)s"
+    )
+    parser.add_argument(
+        "--nrows",
+        default=1,
+        type=int,
+        help="number of rows to average, default: %(default)s",
+    )
     # hdu name|index exclusive
     hgroup = parser.add_mutually_exclusive_group()
-    hgroup.add_argument("--hduname", nargs='+',
-                        metavar='idn', help="process HDU list by names")
-    hgroup.add_argument("--hduindex", nargs='+', type=int,
-                        metavar='idx', help="process HDU list by ids")
-    parser.add_argument("--scaling", choices=['density', 'spectrum'],
-                        default='density', help="default: %(default)s")
-    parser.add_argument("--clip", action='store_true',
-                        help="apply sigma (3) clip to rows used")
-    parser.add_argument("--info", action='store_true',
-                        help="print the info() table summarizing file")
-    parser.add_argument("--debug", action='store_true',
-                        help="print additional debugging messages")
+    hgroup.add_argument(
+        "--hduname", nargs="+", metavar="idn", help="process HDU list by names"
+    )
+    hgroup.add_argument(
+        "--hduindex", nargs="+", type=int, metavar="idx", help="process HDU list by ids"
+    )
+    parser.add_argument(
+        "--scaling",
+        choices=["density", "spectrum"],
+        default="density",
+        help="default: %(default)s",
+    )
+    parser.add_argument(
+        "--clip", action="store_true", help="apply sigma (3) clip to rows used"
+    )
+    parser.add_argument(
+        "--info", action="store_true", help="print the info() table summarizing file"
+    )
+    parser.add_argument(
+        "--debug", action="store_true", help="print additional debugging messages"
+    )
     return parser.parse_args()
 
 
@@ -68,10 +92,10 @@ def main():
     mu.init_logging(optlist.debug)
     mu.init_warnings()
 
-    if optlist.scaling == 'density':
-        window = 'boxcar'
+    if optlist.scaling == "density":
+        window = "boxcar"
     else:
-        window = 'flattop'
+        window = "flattop"
 
     # Open files
     fileno = 0
@@ -88,22 +112,22 @@ def main():
             hdulist.info()
             continue
         # Construct a list of the HDU's to work on
-        hduids = iu.get_requested_image_hduids(hdulist, optlist.hduname,
-                                               optlist.hduindex)
+        hduids = iu.get_requested_image_hduids(
+            hdulist, optlist.hduname, optlist.hduindex
+        )
         # loop over hdu's
         hducnt = 0
         for hduid in hduids:
             hdr = hdulist[hduid].header
             try:
-                dstr = hdr['DATASEC']
+                dstr = hdr["DATASEC"]
             except KeyError as ke:
                 emsg = "KeyError: {}, required".format(ke)
                 logging.error(emsg)
                 sys.exit(1)
             debugmsg = "DATASEC={}".format(dstr)
             logging.debug(debugmsg)
-            res = re.match(r"\[*([0-9]*):([0-9]+),([0-9]+):([0-9]+)\]*",
-                           dstr)
+            res = re.match(r"\[*([0-9]*):([0-9]+),([0-9]+):([0-9]+)\]*", dstr)
             if res:
                 datasec = res.groups()
             else:
@@ -115,13 +139,12 @@ def main():
             x1 = int(datasec[0]) - 1
             x2 = int(datasec[1])
 
-            stddev = float(hdr['STDVBIAS'])
+            stddev = float(hdr["STDVBIAS"])
             pix = hdulist[hduid].data
-            fs = 1.0/(optlist.rt*1e-9)
+            fs = 1.0 / (optlist.rt * 1e-9)
             # measure the size needed
             arr = pix[optlist.row, x1:x2]
-            x, p = signal.periodogram(arr, fs, window,
-                                      scaling=optlist.scaling)
+            x, p = signal.periodogram(arr, fs, window, scaling=optlist.scaling)
             flen = x.size
             plen = p.size
             if flen != plen:
@@ -138,12 +161,11 @@ def main():
                 if optlist.clip:
                     amed = np.median(arr)
                     farr = sigma_clip(arr)
-                    x, p = signal.periodogram(farr.filled(amed),
-                                              fs, window,
-                                              scaling=optlist.scaling)
+                    x, p = signal.periodogram(
+                        farr.filled(amed), fs, window, scaling=optlist.scaling
+                    )
                 else:
-                    x, p = signal.periodogram(arr, fs, window,
-                                              scaling=optlist.scaling)
+                    x, p = signal.periodogram(arr, fs, window, scaling=optlist.scaling)
                 f[rr] = x
                 Pxx_den[rr] = p
 
@@ -167,24 +189,26 @@ def main():
                     debugmsg = "pmax={:>g}".format(pmax)
                     logging.debug(debugmsg)
 
-            plt.semilogy(f_avg, Pxx_den_avg,
-                         label="{}:{:>02d}:{:>7.2f}".format(
-                             fileno, hduid, stddev))
+            plt.semilogy(
+                f_avg,
+                Pxx_den_avg,
+                label="{}:{:>02d}:{:>7.2f}".format(fileno, hduid, stddev),
+            )
             hducnt += 1
             # end loop over hdui's
         fileno += 1
         # end loop over files
     #
-    plt.ylim([0.8*pmin, 1.2*pmax])
-    plt.xlabel('freqquency [Hz]')
-    if optlist.scaling == 'density':
-        plt.ylabel('PSD [V**2/Hz]')
+    plt.ylim([0.8 * pmin, 1.2 * pmax])
+    plt.xlabel("freqquency [Hz]")
+    if optlist.scaling == "density":
+        plt.ylabel("PSD [V**2/Hz]")
     else:
-        plt.ylabel('Linear spectrum [V RMS]')
+        plt.ylabel("Linear spectrum [V RMS]")
     plt.grid(True)
-    plt.legend(fontsize='xx-small', title='File:HDUi RN')
+    plt.legend(fontsize="xx-small", title="File:HDUi RN")
     plt.show()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

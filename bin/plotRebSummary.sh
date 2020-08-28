@@ -27,7 +27,9 @@ do
 done
 shift $((OPTIND - 1))
 
-if [ $# -gt 2 ]; then
+if [ $# -gt 2 ] ; then
+    usage
+elif [ $# -eq 0 ] ; then
     usage
 fi
 
