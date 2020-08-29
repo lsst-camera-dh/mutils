@@ -276,14 +276,14 @@ def main():
     intervals = tu.get_unique_time_intervals(
         optlist.start, optlist.stop, optlist.interval, optlist.duration
     )
-    if not intervals:
+    if intervals:  # interval accounting
+        intcnt = len(intervals)
+        inttot = int(sum([t[1] - t[0] for t in intervals]) / 1000)
+        tmin = intervals[0][0]
+        tmax = intervals[-1][1]
+    else:
         logging.error("time interval spec failed")
         sys.exit(1)
-    # deal with interval accounting
-    intcnt = len(intervals)
-    inttot = int(sum([t[1] - t[0] for t in intervals]) / 1000)
-    tmin = intervals[0][0]
-    tmax = intervals[-1][1]
 
     # set up the trending source(chached-on-disk, slac, base, summit etc.)
     if not optlist.input_file:
@@ -295,13 +295,6 @@ def main():
         else:
             logging.error("failed to determine trending server")
             sys.exit(1)
-        logging.debug(
-            "site: %s server: %s port: %d timezone: %s",
-            tsite["name"],
-            tsite["server"],
-            tsite["port"],
-            tsite["tz"],
-        )
 
         # access the file with the channel list and update if needed
         if optlist.forceupdate:
@@ -311,11 +304,12 @@ def main():
                 tsite["name"], tmin / 1000, tmax / 1000
             )
     else:  # get site and data from input file
-        logging.debug("using input file")
-        # input xml file => site is in file
-        tu.initialize_chid_dictionary(optlist.input_file)
+        logging.debug("using input file %s", optlist.input_file)
+        tsite = tu.init_trending_from_input_xml(optlist.input_file)
+        if not tsite:
+            logging.error("failed to determine trending server")
+            sys.exit(1)
         channel_file = None
-        pass
 
     # construct the dict of input channels as {id:path} and store regexes as list
     oflds = dict()  # dict to hold channel information
@@ -324,7 +318,7 @@ def main():
     if oflds:
         logging.debug("found %d channels", len(oflds))
     else:
-        logging.error("no valid sources found")
+        logging.error("no channels found")
         sys.exit(1)
     if regexes:
         logging.debug("found %d regexes with valid channels", len(regexes))
@@ -456,7 +450,7 @@ def main():
     if optlist.xml:
         xml_dec = b'<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
         os.write(1, xml_dec)
-        datas_str = '<datas> {}="{}" {}="{}" {}="{}"\n'.format(
+        datas_str = '<datas {}="{}" {}="{}" {}="{}">\n'.format(
             "trending_server",
             tsite["server"],
             "trending_port",

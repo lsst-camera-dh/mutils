@@ -1,6 +1,7 @@
 """
 Utility functions for CCS trending access
 """
+import sys
 import socket
 import re
 import logging
@@ -405,7 +406,7 @@ def update_trending_channels_xml(site, tstart=None, tstop=None):
         os.mkdir(cachedir)
     if not os.path.isdir(cachedir):  # is not a directory
         logging.error("%s is not a directory, exiting...", cachedir)
-        exit(1)
+        sys.exit(1)
     #
     # Trigger an update based on whether the interval (tstart,tstop)
     # is covered in the existing cached file based on time of last update
@@ -663,7 +664,7 @@ def parse_channel_sources(sources: list, channel_cache: str) -> tuple:
        inputs:
            sources is a list of either filenames or regular expressions
            channel_cache is the filename where the channel id map is cached
-       output:
+       returns:
            fields dict in form {id:path}
            regexes list of regexes from sources that had matching channels
     """
@@ -692,15 +693,14 @@ def get_chanids_from_files(filelist: list) -> dict:
        output:
            fields dict in form {id:path}
     """
-    # loop over input sources to define the channels for query/output
+    # loop over filelist to define the channels for query/output
     # using a file with 4 fields per line (after comment removal) where
     # the line format is '\s+id:\s+<chan_id>\s+path:\s+<path>$'
     # example: " id: 15176  path: focal-plane/R22/Reb0/Temp3"
     #
-    # After evaluating input, channels needed are stored in "oflds" dict
+    # channels listed are used to construct a dict() to be returned
     # oflds[channel_id_num] = trending_full_path
     # eg: oflds[2372] = aliveness-fp/R00/Reb2/RGL
-    #
     #
     # from https://stackoverflow.com/questions/16710076
     # regex to split a string preserving quoted fields
@@ -743,7 +743,7 @@ def get_chanids_from_files(filelist: list) -> dict:
                 if flds[1].isdigit():
                     oflds[flds[1]] = flds[3]  # oflds[id] = path
                 else:
-                    logging.warning("%s failed integer conversion", flds[1])
+                    logging.warning("bad input line format: %s", line)
             cf.close()
     return oflds
 
@@ -771,8 +771,6 @@ def get_chanids_from_regexes(sources: list, channel_cache: str) -> tuple:
         if not chid_dict:
             logging.debug("initializing channel id:path dictionary")
             chid_dict = get_channel_dict(channel_cache)
-        else:
-            logging.debug("reusing existing channel id:path dictionary")
 
         # add csource as a new parameter in oflds[csource][chid]?
         # search the entire catalog for each pattern, this may be slow
@@ -786,18 +784,17 @@ def get_chanids_from_regexes(sources: list, channel_cache: str) -> tuple:
     return oflds, regexes
 
 
-def initialize_chid_dictionary(input_files: list):
+def init_trending_from_input_xml(input_files: list) -> str:
     """
-    Initialize chid_dict using input data file
-    The sources list
-       inputs:  xml file(s) with trending data
-       returns: none
-       outcome: construct the module level dict() chid_dict
-                mapping channel ids -> channel paths
+    Initialize chid_dict and trending site using input data file
+    inputs:  xml file(s) with trending data
+    returns: site
+    outcome: construct the module level dict() chid_dict
+             mapping channel ids -> channel paths
 
     build a channel dictionary for all channels
     structure of input data xml file is:
-    0: datas [-]
+    0: datas [-] (with attributes trending_server, trending_port, trending_tz
     1: data [id, path]
         2: trendingresult [-]
             3: channelmetadata [-]
@@ -805,23 +802,45 @@ def initialize_chid_dictionary(input_files: list):
             3: trendingdata [-]
                 4: datavalue [name, value]
                 4: axisvalue [name, value, loweredge, upperedge]
+
+    where the top bit has attributes:
+        <datas trending_server="localhost" trending_port="8080" trending_tz="PDT>"
     """
     global chid_dict
+    global site
     logging.debug("initializing id:path dict from input data (xml) files")
     for ifile in input_files:
         logging.debug("ifile= %s", ifile)
         try:
-            iff = open(ifile, mode="r")
+            iff = open(ifile, mode="rb")
+            xmlstring = iff.read()
+            iff.close()
         except OSError as e:
             logging.debug("open(%s) failed: %s", ifile, e)
-            return
+            sys.exit(1)
         else:
-            root = etree.fromstring(iff)
+            root = etree.fromstring(xmlstring)
+            # set the trending site to get the timezone etc
+            tserver = root.attrib.get("trending_server")
+            logging.debug("tserver = %s", tserver)
+            res = None
+            if not site:
+                for ssite in sites:  # break if match
+                    logging.debug("checking site = %s", ssite)
+                    res = re.search(sites[ssite]["server"], tserver)
+                    logging.debug(
+                        "res = re.search(%s, %s)", sites[ssite]["server"], tserver
+                    )
+                    logging.debug("res = %s", res)
+                    if res:
+                        logging.debug("using site = %s", ssite)
+                        site = ssite
+                        break
             for data in root.iter("data"):
                 chid = data.attrib.get("id")
                 path = data.attrib.get("path")
                 if chid and path:
                     chid_dict[chid] = path
-        ifile.close()
 
     logging.debug("channel dict contains %d active channels", len(chid_dict))
+    return sites[site]
