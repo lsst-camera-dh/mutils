@@ -120,7 +120,7 @@ def parse_args():
     parser.add_argument(
         "--plot", action="store_true", help="produce plots for each channel vs. time"
     )
-    parser.add_argument("--saveplot", nargs=1, help="specify filebase String")
+    parser.add_argument("--saveplot", metavar="filename.<pdf|png|..>", help="save as")
     parser.add_argument(
         "--overlay",
         action="store_true",
@@ -1171,9 +1171,8 @@ def main():
             fig.set_tight_layout({"h_pad": 0.02, "w_pad": 1.0, "rect": [0, 0, 1, 1]})
 
         if optlist.saveplot:
-            fig.savefig(
-                "{}-{}.pdf".format(optlist.saveplot[0], xlabel_str[:25]), dpi=600
-            )
+            # filename = re.sub(r"(.*).pdf$", r"\1", optlist.saveplot)
+            fig.savefig(f"{optlist.saveplot}", dpi=600)
         plt.show()
 
     # end of main()
