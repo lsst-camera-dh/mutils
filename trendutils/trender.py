@@ -358,7 +358,8 @@ def main():
             else:
                 logging.debug("NOT adding %s to channels to reject", oflds[chid])
         for rid in rids:
-            oflds.pop(rid)
+            removed = oflds.pop(rid)
+            logging.debug("removing %s from channels to process", removed)
     logging.debug("%d channels remaining", len(oflds))
 
     # now have info needed to query the CCS trending db

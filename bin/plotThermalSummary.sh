@@ -12,16 +12,18 @@ function usage {
     -d <duration>  [default is 10m]
     -t (use time averaged data, good on long queries)
     -p (only plot temps used in PID controls)
+    -e echo command line only
 EOM
 exit 1
 }
 #-- process commandline options
 #
 duration=
-while getopts "hd:tp" Option
+while getopts "ehd:tp" Option
 do
   case $Option in
     h  ) usage;;
+    e  ) echocmd="yes";;
     d  ) duration=$OPTARG;;
     t  ) timebins="yes";;
     p  ) pidonly="yes";;
@@ -89,6 +91,11 @@ fi
 
 if [ $pidonly ] ; then
     badCCDrtds+=( ${nonPIDrtds[@]} )
+fi
+
+if [ $echocmd ] ; then
+    echo trender.py ${st} --dur $duration ${timebins} --title "Cryo Stat Thermal Summary" --layout 4x2 --plot --outside --reject "${badCCDrtds[@]}" --overlayregex -- "${regexes[@]}"
+    exit 0
 fi
 
 trender.py ${st} --dur $duration ${timebins} --title "Cryo Stat Thermal Summary" --layout 4x2 --plot --outside --reject "${badCCDrtds[@]}" --overlayregex -- "${regexes[@]}"

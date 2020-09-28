@@ -15,12 +15,14 @@ exit 1
 #-- process commandline options
 #
 duration=
-while getopts "htd:" Option
+savefile=
+while getopts "htd:s:" Option
 do
   case $Option in
     h  ) usage;;
     d  ) duration=$OPTARG;;
     t  ) timebins="yes";;
+    s  ) savefile=$OPTARG;;
     *  ) ${ECHO} "Unimplemented option chosen.";;   # Default.
   esac
 done
@@ -56,8 +58,13 @@ if [ $duration"XXX" == "XXX" ] ; then
       duration=10m
 fi
 
+sv=
+if [ $savefile"XXX" != "XXX" ] ; then
+      sv="--save ${savefile}"
+fi
+
 if [ $timebins ] ; then
       timebins='--timebins'
 fi
 
-trender.py ${st} --dur ${duration} ${timebins} --title "Refrig Summary" --plot --layout 7x2 --outside --overlayregex -- "${regexes[@]}"
+trender.py ${st} ${sv} --dur ${duration} ${timebins} --title "Refrig Summary" --plot --layout 7x2 --outside --overlayregex -- "${regexes[@]}"

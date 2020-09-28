@@ -50,6 +50,8 @@ badCCDrtds[0]='focal-plane/R11/Reb0/S02/Temp'
 badCCDrtds[1]='focal-plane/R41/Reb2/S20/Temp'
 badCCDrtds[2]='focal-plane/R41/Reb2/S21/Temp'
 badCCDrtds[3]='focal-plane/R41/Reb2/S22/Temp'
+badCCDrtds[4]='focal-plane/R02/Reb2/S22/Temp'
+badCCDrtds[5]='focal-plane/R03/Reb1/S12/Temp'
 
 #nonPIDrtds
 nonPIDrtds[0]='focal-plane/R12/Reb2/S20/Temp'
