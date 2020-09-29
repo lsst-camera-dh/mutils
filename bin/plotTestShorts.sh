@@ -3,9 +3,9 @@
 #------------------------------------------------------------------------
 function usage {
   cat <<-EOM
-  Usage ${0##*/} rebPath startTime
+  Usage ${0##*/} rebPath stopTime
     rebPath ~ <subsystem>/<bay>/Reb[012]
-    startTime ~ 2020-06-19T11:00:41-07:00
+    stopTime ~ 2020-06-19T11:00:41-07:00
     quote time if it contains spaces
   Options:
     -h (print help msg)
@@ -38,4 +38,4 @@ if [ $duration"XXX" == "XXX" ] ; then
       duration=9s
 fi
 
-trender.py --lay 3x1 --out --start "${2}" --title "testCCDShorts:${1}" --overlayreg --plot --dur $duration --fmt 'o-' -- "${regexes[@]}"
+trender.py --lay 3x1 --out --stop "${2}" --title "testCCDShorts:${1}" --overlayreg --plot --dur $duration --fmt 'o-' -- "${regexes[@]}"
