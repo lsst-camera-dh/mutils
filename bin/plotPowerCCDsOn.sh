@@ -22,11 +22,13 @@ fi
 #-- process commandline options
 #
 duration=
-while getopts "hd:" Option
+while getopts "swhd:" Option
 do
     case $Option in
         h  ) usage;;
         d  ) duration=$OPTARG;;
+        s  ) savePlot="yes";;
+        w  ) waitTime="yes";;
         *  ) ${ECHO} "Unimplemented option chosen.";;   # Default.
     esac
 done
@@ -38,8 +40,17 @@ regexes[1]=${1}'/[PSR].*[UL]$'  # clock levels
 regexes[2]=${1}'/S.*/.*V$'      # bias voltages
 
 if [ $duration"XXX" == "XXX" ] ; then
-    duration=6
+    declare -i duration=7
 fi
 
-trender.py --lay 3x1 --out --start "${2}" --title "powerCCDsOn:${1}" --overlayreg --plot --dur ${duration} --fmt "o-" -- "${regexes[@]}"
+if [ $waitTime ] ; then
+    declare -i s=$duration+4
+    sleep $s
+fi
 
+sarg=
+if [ $savePlot ] ; then
+    sarg=" --save /tmp/"$(echo -n $1 | sed 's?/?_?g')"_powerCCDsOn.png"
+fi
+
+trender.py --lay 3x1 --out ${sarg} --start "${2}" --title "powerCCDsOn:${1}" --overlayreg --plot --dur ${duration} --fmt "o-" -- "${regexes[@]}"
