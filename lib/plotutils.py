@@ -117,9 +117,10 @@ def plot_hdus(optdict: dict, hduids: list, hdulist: fits.HDUList, pax: plt.axes)
         row       region spec list
         bias      "overscan" or 'x1:x2' column spec
         btype     mean|median|byrow|byrowsmooth|byrowcol|byrowcolsmooth
-        ltype     median|mean|clipped
+        ltype     median|mean|clipped|series
         steps     default|steps-mid
         offset    mean|median|delta
+        series    boolean
     hduids: List of hdu ids to work on
     hdulist: A fits HDUList object containing the hdu's
     pax: A matplotlib.axes.Axes instance to contain the line plots
@@ -193,6 +194,12 @@ def line_plot(
         line1 = np.median(pix[slice_spec], axis=map_axis)
     elif map_type == "mean":
         line1 = np.mean(pix[slice_spec], axis=map_axis)
+    elif map_type == "series":
+        if map_axis == 0:
+            order = "F"
+        if map_axis == 1:
+            order = "C"
+        line1 = pix[slice_spec].flatten(order)
     elif map_type == "clipped":
         l1_avg, line1, l1_std = stats.sigma_clipped_stats(
             pix[slice_spec], axis=map_axis
@@ -229,7 +236,12 @@ def line_plot(
     y = np.arange(
         (slice_spec[0].start or 0) + 1, (slice_spec[0].stop or len(pix[:, 0])) + 1
     )
-    s = x if map_axis == 0 else y
+    if map_axis == 0:
+        s = x
+    else:  # map_axis == 1:
+        s = y
+    if map_type == "series":
+        s = np.arange(0, len(line1))
     slabel = "{}:[{}:{},{}:{}]".format(hduname, x[0], x[-1], y[0], y[-1])
     pax.plot(s, line1, drawstyle="{}".format(steps), label=slabel)
     pax.xaxis.set_tick_params(labelsize="x-small")
