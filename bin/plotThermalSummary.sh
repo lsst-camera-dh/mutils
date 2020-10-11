@@ -94,8 +94,8 @@ if [ $pidonly ] ; then
 fi
 
 if [ $echocmd ] ; then
-    echo trender.py ${st} --dur $duration ${timebins} --title "Cryo Stat Thermal Summary" --layout 4x2 --plot --outside --reject "${badCCDrtds[@]}" --overlayregex -- "${regexes[@]}"
+    echo trender.py ${st} --dur $duration ${timebins} --title \"CryoStat Thermal Summary\" --layout 4x2 --plot --outside --reject \"${badCCDrtds[@]}\" --overlayregex -- \"${regexes[@]}\"
     exit 0
 fi
 
-trender.py ${st} --dur $duration ${timebins} --title "Cryo Stat Thermal Summary" --layout 4x2 --plot --outside --reject "${badCCDrtds[@]}" --overlayregex -- "${regexes[@]}"
+trender.py ${st} --dur $duration ${timebins} --title "CryoStat Thermal Summary" --layout 4x2 --plot --outside --reject "${badCCDrtds[@]}" --overlayregex -- "${regexes[@]}"
