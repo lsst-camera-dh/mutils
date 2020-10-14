@@ -36,7 +36,7 @@ regexes[0]=${1}'/[CO].*I'       # board currents
 regexes[1]=${1}'/[PSR].*[UL]$'  # clock levels
 regexes[2]=${1}'/S../.*V$'      # bias voltages
 if [ $duration"XXX" == "XXX" ] ; then
-      duration=10s
+      duration=8s
 fi
 
 if [ $waitTime ] ; then

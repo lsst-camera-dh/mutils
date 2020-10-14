@@ -44,7 +44,7 @@ if [ $duration"XXX" == "XXX" ] ; then
 fi
 
 if [ $waitTime ] ; then
-    declare -i s=$duration+4
+    declare -i s=$duration+2
     sleep $s
 fi
 
