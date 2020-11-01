@@ -8,6 +8,8 @@ function usage {
     quote time if it contains spaces
   Options:
     -h (print help msg)
+    -t (use time averaged data, good on long queries)
+    -s saveFileName
     -d <duration>  [default is 10m]
 EOM
 exit 1
@@ -45,8 +47,8 @@ regexes+=('^hex/Cold1/.*Tmp')
 regexes+=('^hex/Cold2/.*Tmp')
 regexes+=('^thermal/Cold_Temp/CLP-RTD-..')
 regexes+=('^thermal/Cryo_Temp/CYP-RTD-.[24]')
-regexes+=('^refrig/Cold1/([^D].*Tmp_M$|[^A^C].*Tmp$)')
-regexes+=('^refrig/Cold2/([^D].*Tmp_M$|[^A^C].*Tmp$)')
+regexes+=('^refrig/Cold1/([^D].*Tmp_M$|[^C].*Tmp$)')
+regexes+=('^refrig/Cold2/([^D].*Tmp_M$|[^C].*Tmp$)')
 regexes+=('^[hr].*[xg]/Cold./(Supply|Dischrg).*Prs')
 regexes+=('^[hr].*[xg]/Cold./(Suction|Return).*Prs')
 regexes+=('^refrig/Cold./CompPower$')
@@ -68,3 +70,4 @@ if [ $timebins ] ; then
 fi
 
 trender.py ${st} ${sv} --dur ${duration} ${timebins} --title "Refrig Summary" --plot --layout 7x2 --outside --overlayregex -- "${regexes[@]}"
+

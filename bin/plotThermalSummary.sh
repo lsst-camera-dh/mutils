@@ -19,13 +19,14 @@ exit 1
 #-- process commandline options
 #
 duration=
-while getopts "ehd:tp" Option
+while getopts "sehd:tp" Option
 do
   case $Option in
     h  ) usage;;
     e  ) echocmd="yes";;
     d  ) duration=$OPTARG;;
     t  ) timebins="yes";;
+    s  ) savePlot="yes";;
     p  ) pidonly="yes";;
     *  ) ${ECHO} "Unimplemented option chosen.";;   # Default.
   esac
@@ -93,9 +94,14 @@ if [ $pidonly ] ; then
     badCCDrtds+=( ${nonPIDrtds[@]} )
 fi
 
+sarg=
+if [ $savePlot ] ; then
+    sarg=" --save /tmp/"$(echo -n $1 | sed 's?/?_?g')"_TestShorts.png"
+fi
+
 if [ $echocmd ] ; then
     echo trender.py ${st} --dur $duration ${timebins} --title \"CryoStat Thermal Summary\" --layout 4x2 --plot --outside --reject \"${badCCDrtds[@]}\" --overlayregex -- \"${regexes[@]}\"
     exit 0
 fi
 
-trender.py ${st} --dur $duration ${timebins} --title "CryoStat Thermal Summary" --layout 4x2 --plot --outside --reject "${badCCDrtds[@]}" --overlayregex -- "${regexes[@]}"
+trender.py ${sarg} ${st} --dur $duration ${timebins} --title "CryoStat Thermal Summary" --layout 4x2 --plot --outside --reject "${badCCDrtds[@]}" --overlayregex -- "${regexes[@]}"
