@@ -56,9 +56,8 @@ regexes+=('^thermal/Trim_Htrs/C.*Total_P')
 #badrtds:
 declare -a badCCDrtds
 badCCDrtds+=('focal-plane/R11/Reb0/S02/Temp')
-badCCDrtds+=('focal-plane/R41/Reb2/S20/Temp')
-badCCDrtds+=('focal-plane/R41/Reb2/S21/Temp')
-badCCDrtds+=('focal-plane/R41/Reb2/S22/Temp')
+badCCDrtds+=('focal-plane/R41/Reb2/S../Temp')
+nonPIDrtds+=('focal-plane/R42/Reb1/S../Temp')
 #nonPIDrtds
 declare -a nonPIDrtds
 nonPIDrtds+=('focal-plane/R02/Reb0/S02/Temp')
@@ -77,7 +76,6 @@ nonPIDrtds+=('focal-plane/R33/Reb2/S22/Temp')
 nonPIDrtds+=('focal-plane/R34/Reb0/S01/Temp')
 nonPIDrtds+=('focal-plane/R34/Reb0/S02/Temp')
 nonPIDrtds+=('focal-plane/R41/Reb0/S01/Temp')
-nonPIDrtds+=('focal-plane/R42/Reb0/S02/Temp')
 nonPIDrtds+=('focal-plane/R43/Reb0/S01/Temp')
 nonPIDrtds+=('focal-plane/R43/Reb1/S12/Temp')
 nonPIDrtds+=('focal-plane/R43/Reb2/S21/Temp')
