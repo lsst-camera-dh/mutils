@@ -53,7 +53,7 @@ def parse_args():
         "stats", "select statistics and regions" " (exclusive of quicklook)"
     )
     sgroup.add_argument(
-        "--region", nargs="+", metavar="reg", help='2d-slicespec: "rows,cols"')
+        "--region", nargs="+", metavar="reg", help='2d-slicespec: "rows,cols"'
     )
     sgroup.add_argument(
         "--datasec", action="store_true", help="perform stats on DATASEC region"
