@@ -74,13 +74,13 @@ def parse_args():
         metavar="idx",
         help="process HDU list by ids",
     )
-    parser.add_argument("--region", default=None, help='region fmt: "x1:x2, y1:y2"')
+    parser.add_argument("--region", nargs=1, help='2d-slicespec: "rows,cols"')
     parser.add_argument(
         "--bias",
         nargs="?",
-        metavar="cols",
+        metavar="1d-slicespec",
         const="overscan",
-        help='subtract bias, fmt: "x1:x2"',
+        help='subtract bias, 1d-slicespec: "s1:s2"',
     )
     parser.add_argument(
         "--btype",
@@ -109,7 +109,6 @@ def main():
 
     # evaluate operands as either a filename, float, floats or error
     verify_args(optlist)
-    region = None
     if optlist.region:
         region = iu.parse_region(optlist.region)
 

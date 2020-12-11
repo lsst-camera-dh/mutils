@@ -41,7 +41,7 @@ def parse_args():
             """
         Given a set of input images, produce an output image
         that is an average or median on the inputs with optional
-        subtraction and other processing options.
+        bias subtraction and other processing options.
         Note a "--" is often needed to indicate the end of options.
                                """
         ),
@@ -90,15 +90,15 @@ def parse_args():
         help="list of HDU ids",
     )
     # limit output to an ROI
-    parser.add_argument("--region", default=None, help='ROI region fmt: "x1:x2, y1:y2"')
+    parser.add_argument("--region", nargs=1, help='2d-slicespec: "rows,cols"')
     # bias subtraction controls
-    parser.add_argument("--bias_image", nargs=1, help="subtract a bias image")
+    parser.add_argument("--bimage", nargs=1, help="subtract a bias image")
     parser.add_argument(
         "--bias",
         nargs="?",
-        metavar="cols",
+        metavar="1d-slicespec",
         const="overscan",
-        help='subtract bias, fmt: "x1:x2"',
+        help='subtract bias, fmt: "s1:s2"',
     )
     parser.add_argument(
         "--btype",
@@ -116,6 +116,7 @@ def parse_args():
     # define scaling region
     parser.add_argument(
         "--scaling", default=None, help='Scaling region fmt: "x1:x2, y1:y2"'
+    help='ROI region fmt: "x1:x2, y1:y2"')
     )
     # additional info
     parser.add_argument(
@@ -162,10 +163,10 @@ def main():
 
     # get a list of verified images as hdulists
     # prepare input files for use (open and verify)
-    if optlist.bias_image:  # include in verification
-        ifiles.append(optlist.bias_image)
+    if optlist.bimage:  # include in verification
+        ifiles.append(optlist.bimage)
     iimages = iu.files_to_hdulists(ifiles, True)
-    if optlist.bias_image:
+    if optlist.bimage:
         bimage = iimages.pop()  # remove & assign last as bias image
     else:
         bimage = None

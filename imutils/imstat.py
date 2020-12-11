@@ -53,7 +53,7 @@ def parse_args():
         "stats", "select statistics and regions" " (exclusive of quicklook)"
     )
     sgroup.add_argument(
-        "--region", nargs="+", metavar="reg", help='iraf fmt: "x1:x2,y1:y2"'
+        "--region", nargs="+", metavar="reg", help='2d-slicespec: "rows,cols"')
     )
     sgroup.add_argument(
         "--datasec", action="store_true", help="perform stats on DATASEC region"
@@ -77,9 +77,9 @@ def parse_args():
     sgroup.add_argument(
         "--bias",
         nargs="?",
-        metavar="cols",
+        metavar="1d-slicespec",
         const="overscan",
-        help='subtract bias, fmt: "x1:x2"',
+        help='subtract bias, fmt: "s1:s2"',
     )
     sgroup.add_argument(
         "--btype",

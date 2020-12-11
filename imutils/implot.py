@@ -64,10 +64,16 @@ def parse_args():
     # row or column plot stuff affecting drawing the plots
     pgroup = parser.add_mutually_exclusive_group()
     pgroup.add_argument(
-        "--row", nargs="*", metavar="reg", help='row plot, region fmt: "x1:x2,y1:y2"'
+        "--row",
+        nargs="*",
+        metavar="2d-slicespec",
+        help='row plot, fmt: "rowspec, colspec"',
     )
     pgroup.add_argument(
-        "--col", nargs="*", metavar="reg", help='column plot, region fmt: "x1:x2,y1:y2"'
+        "--col",
+        nargs="*",
+        metavar="2d-slicespec",
+        help='col plot, fmt: "rowspec, colspec"',
     )
     parser.add_argument(
         "--ltype",
@@ -84,9 +90,9 @@ def parse_args():
     parser.add_argument(
         "--bias",
         nargs="?",
-        metavar="cols",
+        metavar="1d-slicespec",
         const="overscan",
-        help='subtract bias, fmt: "x1:x2"',
+        help='slice: "s1:s2"',
     )
     parser.add_argument(
         "--btype",
@@ -208,21 +214,10 @@ def main():
     mu.init_logging(optlist.debug)
     mu.init_warnings()
     logging.debug("optlist: %s", optlist)
-    # sys.exit(0)
 
     # update/override some critical parameters
     plt.style.use(optlist.style)
     pu.update_rcparams()
-    # plt.rcParams.update({'legend.handlelength': 0.6})
-    # plt.rcParams.update({'font.size': 6})
-    # plt.rcParams.update({'xtick.labelsize': 6})
-    # plt.rcParams.update({'ytick.labelsize': 6})
-    # plt.rcParams.update({'lines.markersize': 2})
-
-    # layout of plot view for array of plots:
-    #     landscape has columns > rows
-    #     portrait has more rows > columns w/room for legend
-    # plt.rcParams['figure.constrained_layout.use'] = True
 
     fig, axes = pu.get_fig_and_axis(
         len(optlist.fitsfile),
@@ -352,34 +347,8 @@ def main():
     handles, labels = ax.get_legend_handles_labels()
     if nfiles == 1 or optlist.overlay:
         ax = np.ravel(axes)[0]
-    #       # ax = axes[0, 0]
-    #       if len(handles) < 6:  # inside the plot box
-    #           ax.legend(handles, labels, loc='best',
-    #                     fontsize='xx-small', title='HDU:Region')
-    #       else:  # outside at upper right
-    #           if len(handles) < 12:
-    #               ftsize = 'x-small'
-    #           elif len(handles) < 25:
-    #               ftsize = 'xx-small'
-    #           else:
-    #               labels[24] = "truncated labels[{}:{}]".format(24, len(handles))
-    #               ftsize = 'xx-small'
-    #           fsize = fig.get_size_inches()
-    #           fig.set_size_inches(fsize[0]*1.2, fsize[1])
-    #           ax.legend(handles, labels[:25], loc="upper left",
-    #                     bbox_to_anchor=(1, 1), fontsize=ftsize,
-    #                     title='HDU:Region')
     else:
         ax = np.ravel(axes)[-1]  # put legend in last slot
-    #       if len(handles) < 12:
-    #           ftsize = 'x-small'
-    #       elif len(handles) < 25:
-    #           ftsize = 'xx-small'
-    #       else:
-    #           labels[24] = "truncated labels[{}:{}]".format(24, len(handles))
-    #           ftsize = 'xx-small'
-    #       ax.legend(handles[:25], labels[:25],
-    #                 fontsize=ftsize, title='HDU:Region ')
     pu.mk_legend(optlist.placement, nprows, handles, labels, ax)
 
     if not optlist.overlay:

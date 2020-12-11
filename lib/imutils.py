@@ -95,11 +95,31 @@ def init_image_hdu(
 def parse_region(reg: str) -> tuple:
     """
     Return a pair of slices (slice1, slice2) corresponding
+    to the region give as input in numpy slice string format
+    If the region can't be parsed (None, None) is returned
+    """
+    try:
+        slices = str_to_slices(reg)
+    except ValueError as ve:
+        logging.error("ValueError: %s", ve)
+        logging.error("Bad region spec: %s", reg)
+        sys.exit(1)
+
+    if len(slices) != 2:
+        logging.error("Bad region spec: %s", reg)
+        sys.exit(1)
+
+    return slices
+
+
+def parse_iraf_region(reg: str) -> tuple:
+    """
+    Return a pair of slices (slice1, slice2) corresponding
     to the region give as input in ~IRAF format
     If the region can't be parsed (None, None) is returned
     """
     # peel off any outer brackets
-    reg = re.sub(r"^\[*([^\]]*)\]*$", r"\1", reg)
+    reg = re.sub(r"^\[([^\]]*)\]$", r"\1", reg)
     #
     # reg = [x1:x2,y1:y2] -- standard rectangle)
     if re.match(r"([0-9]*):([0-9]+),\s*([0-9]+):([0-9]+)$", reg):
@@ -280,7 +300,7 @@ def get_data_oscan_slices(hdu: fits.FitsHDU) -> tuple:
         logging.error("KeyError: %s required", ke)
         return (None, None, None)
     # get DATASEC region
-    datasec = parse_region(dstr)
+    datasec = parse_iraf_region(dstr)
     if datasec == (None, None):
         return (None, None, None)
     (p1, p2) = (datasec[0].start or 0, datasec[0].stop or len(hdu.data[:, 0]))
@@ -295,6 +315,33 @@ def get_data_oscan_slices(hdu: fits.FitsHDU) -> tuple:
         poscan = (slice(None), slice(None))
 
     return (datasec, soscan, poscan)
+
+
+def str_to_slices(sliceStr: str) -> tuple:
+    """
+    Parse a string containing one or more slice specs separated by commas
+
+    Returns a tuple of slice() objects
+
+    rewrite of:
+    https://stackoverflow.com/questions/43089907/
+    using-a-string-to-define-numpy-array-slice
+    to make it straightforward albeit not nearly as elegant
+    """
+    slices = []
+    for sspec in sliceStr.split(","):
+        if not ":" in sspec:
+            slices.append(int(sspec.strip()))
+        else:
+            slice_args = []
+            for item in sspec.strip().split(":"):
+                if item:
+                    slice_args.append(int(item))
+                else:
+                    slice_args.append(None)
+            slices.append(slice(*tuple(slice_args)))
+
+    return tuple(slices)
 
 
 def subtract_bias(bstring: str, btype: str, hdu: fits.ImageHDU):
@@ -312,10 +359,10 @@ def subtract_bias(bstring: str, btype: str, hdu: fits.ImageHDU):
     if bstring == "overscan":
         logging.debug("use overscan region in hdu:%s", hdu.name)
     elif len(bstring) >= 3:  # user supplies column selection
-        # eg. a:b is minimum spec size, peel off outer brackets
+        # eg. a:b or -a: is minimum spec size, peel off outer brackets
         try:
             logging.debug("use %s cols in hdu:%s bias subtraction", bstring, hdu.name)
-            reg = re.sub(r"^\[*([0-9]+:[0-9]+)\]*$", r"\1", bstring)
+            reg = re.sub(r"^\[([^\]]*)\]$", r"\1", bstring)
             (x1, x2) = re.match(r"([0-9]+):([0-9]+)$", reg).groups()
             soscan = (soscan[0], slice(int(x1), int(x2)))
         except SyntaxError as se:
@@ -333,8 +380,8 @@ def subtract_bias(bstring: str, btype: str, hdu: fits.ImageHDU):
         so_avg, so_bias, so_std = stats.sigma_clipped_stats(hdu.data[soscan], axis=1)
         if re.search(r"smooth", btype):  # smooth the row bias vector a bit
             logging.debug("smoothing serial overscan with Gaussian1DKernel")
-            gauss_kernel = Gaussian1DKernel(1)
-            so_bias = convolve(so_bias, gauss_kernel)
+            kernel = Gaussian1DKernel(1)
+            so_bias = convolve(so_bias, kernel, boundary="extend")
         # convert shape from (n,) to (n, 1)
         so_bias = so_bias.reshape(np.shape(so_bias)[0], 1)
         logging.debug("np.shape(so_bias)=%s", np.shape(so_bias))
@@ -353,8 +400,8 @@ def subtract_bias(bstring: str, btype: str, hdu: fits.ImageHDU):
             )
             if re.search(r"smooth", btype):  # smooth col bias vector a bit
                 logging.debug("smoothing par overscan with Gaussian1DKernel")
-                gauss_kernel = Gaussian1DKernel(2)
-                po_bias = convolve(po_bias, gauss_kernel)
+                kernel = Gaussian1DKernel(1)
+                po_bias = convolve(po_bias, kernel, boundary="extend")
             # convert shape from (,n) to (1, n)
             po_bias = po_bias.reshape(1, np.shape(po_bias)[0])
             logging.debug("np.shape(po_bias)=%s", np.shape(po_bias))
