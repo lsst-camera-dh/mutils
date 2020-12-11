@@ -115,9 +115,7 @@ def parse_args():
     )
     # define scaling region
     parser.add_argument(
-        "--scaling", default=None, help='Scaling region fmt: "x1:x2, y1:y2"'
-    help='ROI region fmt: "x1:x2, y1:y2"')
-    )
+        "--scaling", default=None, nargs='?', help='2d-slicespec: "rows,cols"')
     # additional info
     parser.add_argument(
         "--verbose", action="store_true", help="print progress and process info"
