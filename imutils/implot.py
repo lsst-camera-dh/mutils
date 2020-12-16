@@ -104,6 +104,7 @@ def parse_args():
             "byrowsmooth",
             "byrowcol",
             "byrowcolsmooth",
+            "e2v"
         ],
         help="bias subtraction method, default: %(default)s",
     )

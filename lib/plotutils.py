@@ -213,6 +213,7 @@ def line_plot(
     else:
         logging.error("ltype incorrect or programmer error")
         sys.exit(1)
+    logging.debug("np.shape(line1)=%s", np.shape(line1))
 
     #  shift the line (row|column) if needed for plotting
     if plot_offset:
@@ -230,19 +231,17 @@ def line_plot(
             exit(1)
 
     #  plot the line: N.B. arrays are 0 indexed, fits is 1 indexed
-    x = np.arange(
-        (slice_spec[1].start or 0) + 1, (slice_spec[1].stop or len(pix[0, :])) + 1
-    )
-    y = np.arange(
-        (slice_spec[0].start or 0) + 1, (slice_spec[0].stop or len(pix[:, 0])) + 1
-    )
+    xa = np.arange(len(pix[0,:])) 
+    x = np.arange(xa[slice_spec[1]][0]+1, xa[slice_spec[1]][-1]+1+1)
+    ya = np.arange(len(pix[:,0]))
+    y = np.arange(ya[slice_spec[0]][0]+1, ya[slice_spec[0]][-1]+1+1)
     if map_axis == 0:
         s = x
     else:  # map_axis == 1:
         s = y
     if map_type == "series":
         s = np.arange(0, len(line1))
-    slabel = "{}:[{}:{},{}:{}]".format(hduname, x[0], x[-1], y[0], y[-1])
+    slabel = "{}:[{}:{},{}:{}]".format(hduname, y[0], y[-1], x[0], x[-1])
     pax.plot(s, line1, drawstyle="{}".format(steps), label=slabel)
     pax.xaxis.set_tick_params(labelsize="x-small")
     pax.yaxis.set_tick_params(labelsize="x-small")

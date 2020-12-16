@@ -95,7 +95,7 @@ def parse_args():
     parser.add_argument("--bimage", nargs=1, help="subtract a bias image")
     parser.add_argument(
         "--bias",
-        nargs="?",
+        nargs='?',
         metavar="1d-slicespec",
         const="overscan",
         help='subtract bias, fmt: "s1:s2"',

@@ -109,6 +109,7 @@ def main():
 
     # evaluate operands as either a filename, float, floats or error
     verify_args(optlist)
+    region = None
     if optlist.region:
         region = iu.parse_region(optlist.region)
 

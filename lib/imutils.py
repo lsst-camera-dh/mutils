@@ -96,7 +96,7 @@ def parse_region(reg: str) -> tuple:
     """
     Return a pair of slices (slice1, slice2) corresponding
     to the region give as input in numpy slice string format
-    If the region can't be parsed (None, None) is returned
+    If the region can't be parsed sys.exit() is called
     """
     try:
         slices = str_to_slices(reg)
@@ -362,9 +362,11 @@ def subtract_bias(bstring: str, btype: str, hdu: fits.ImageHDU):
         # eg. a:b or -a: is minimum spec size, peel off outer brackets
         try:
             logging.debug("use %s cols in hdu:%s bias subtraction", bstring, hdu.name)
-            reg = re.sub(r"^\[([^\]]*)\]$", r"\1", bstring)
-            (x1, x2) = re.match(r"([0-9]+):([0-9]+)$", reg).groups()
-            soscan = (soscan[0], slice(int(x1), int(x2)))
+            # reg = re.sub(r"^\[([^\]]*)\]$", r"\1", bstring)
+            # (x1, x2) = re.match(r"([0-9]+):([0-9]+)$", reg).groups()
+            rslice = str_to_slices(bstring)
+            soscan = (soscan[0], rslice[0])
+            # soscan = (soscan[0], slice(int(x1), int(x2)))
         except SyntaxError as se:
             logging.error("SyntaxError: %s", se)
             logging.error("bad bias selection %s", bstring)
@@ -375,12 +377,13 @@ def subtract_bias(bstring: str, btype: str, hdu: fits.ImageHDU):
 
     logging.debug("biastype=%s", btype)
     # default method is "byrow"
-    if btype in ("byrow", "byrowsmooth", "byrowcol", "byrowcolsmooth"):
+    if btype in ("byrow", "byrowsmooth", "byrowcol", "byrowcolsmooth", "lsste2v"):
         # get sigma clipped median per row
         so_avg, so_bias, so_std = stats.sigma_clipped_stats(hdu.data[soscan], axis=1)
         if re.search(r"smooth", btype):  # smooth the row bias vector a bit
             logging.debug("smoothing serial overscan with Gaussian1DKernel")
             kernel = Gaussian1DKernel(1)
+            # don't process the first column
             so_bias = convolve(so_bias, kernel, boundary="extend")
         # convert shape from (n,) to (n, 1)
         so_bias = so_bias.reshape(np.shape(so_bias)[0], 1)
@@ -388,20 +391,14 @@ def subtract_bias(bstring: str, btype: str, hdu: fits.ImageHDU):
         hdu.data = hdu.data - so_bias.data
         if btype in ("byrowcol", "byrowcolsmooth"):
             # get sigma clipped median per column
-            logging.debug(
-                "poscan=((%d, %d), (%d, %d))",
-                poscan[0].start,
-                poscan[0].stop,
-                poscan[1].start,
-                poscan[1].stop,
-            )
             po_avg, po_bias, po_std = stats.sigma_clipped_stats(
                 hdu.data[poscan], axis=0
             )
             if re.search(r"smooth", btype):  # smooth col bias vector a bit
                 logging.debug("smoothing par overscan with Gaussian1DKernel")
                 kernel = Gaussian1DKernel(1)
-                po_bias = convolve(po_bias, kernel, boundary="extend")
+                # don't process the first column
+                po_bias[1:] = convolve(po_bias[1:], kernel, boundary="extend")
             # convert shape from (,n) to (1, n)
             po_bias = po_bias.reshape(1, np.shape(po_bias)[0])
             logging.debug("np.shape(po_bias)=%s", np.shape(po_bias))
