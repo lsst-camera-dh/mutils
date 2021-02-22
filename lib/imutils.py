@@ -11,8 +11,11 @@ from astropy.io import fits
 from astropy import stats
 from astropy import wcs
 from astropy.utils.exceptions import AstropyWarning
-from astropy.convolution import convolve, Gaussian1DKernel
+from astropy.convolution import convolve, Gaussian1DKernel, RickerWavelet1DKernel
 import numpy as np
+from scipy.ndimage import minimum_filter1d
+from scipy.ndimage import percentile_filter
+from scipy.interpolate import interp1d
 
 
 def create_output_hdulist(hdulisti: fits.HDUList, argv: list) -> fits.HDUList:
@@ -189,15 +192,18 @@ def get_requested_hduids(
     Check that they exist in hdulist.  Requested hduids that
     don't exist are skipped.  Redundant values are dropped.
     """
+    logging.debug("get_requested_hduids() called")
     hduids = []  # list of candidate hduids
     for name in hdunames or []:
-        try:
-            hduid = hdulist.index_of(name)
-            if hduid not in hduids:
-                hduids.append(hduid)
-        except KeyError as ke:
-            logging.error("KeyError: %s", ke)
-            logging.error("HDU[%s] not found, skipping", name)
+        for hdu in hdulist:
+            if re.search(name, hdu.name):
+                try:
+                    hduid = hdulist.index_of(hdu.name)
+                    if hduid not in hduids:
+                        hduids.append(hduid)
+                except KeyError as ke:
+                    logging.error("KeyError: %s", ke)
+                    logging.error("HDU[%s] not found, skipping", hdu.name)
     for hduid in hduindices or []:
         try:
             hdu = hdulist[hduid]
@@ -223,15 +229,18 @@ def get_requested_image_hduids(
     Check that they exist in hdulist and have data.  Requested hduids that
     don't exist are skipped.  Redundant values are dropped.
     """
+    logging.debug("get_requested_hduids() called")
     chduids = []  # list of candidate hduids
     for name in hdunames or []:
-        try:
-            hduid = hdulist.index_of(name)
-            if hduid not in chduids:
-                chduids.append(hduid)
-        except KeyError as ke:
-            logging.error("KeyError: %s", ke)
-            logging.error("HDU[%s] not found, skipping", name)
+        for hdu in hdulist:
+            if re.search(name, hdu.name):
+                try:
+                    hduid = hdulist.index_of(hdu.name)
+                    if hduid not in chduids:
+                        chduids.append(hduid)
+                except KeyError as ke:
+                    logging.error("KeyError: %s", ke)
+                    logging.error("HDU[%s] not found, skipping", hdu.name)
     for hduid in hduindices or []:
         try:
             hdu = hdulist[hduid]
@@ -328,10 +337,14 @@ def str_to_slices(sliceStr: str) -> tuple:
     using-a-string-to-define-numpy-array-slice
     to make it straightforward albeit not nearly as elegant
     """
+    # peel off any outer brackets
+    sliceStr = re.sub(r"^\[([^\]]*)\]$", r"\1", sliceStr)
+
     slices = []
     for sspec in sliceStr.split(","):
-        if not ":" in sspec:
-            slices.append(int(sspec.strip()))
+        if ":" not in sspec:
+            slice_args = [int(sspec), int(sspec) + 1]
+            slices.append(slice(*tuple(slice_args)))
         else:
             slice_args = []
             for item in sspec.strip().split(":"):
@@ -344,74 +357,304 @@ def str_to_slices(sliceStr: str) -> tuple:
     return tuple(slices)
 
 
-def subtract_bias(bstring: str, btype: str, hdu: fits.ImageHDU):
+def subtract_bias(stype: str, ptype: str, hdu: fits.ImageHDU):
     """
     Subtract a bias estimate (using overscans) from an hdu.
+    Operates in-place on the Image.HDU parameter
 
-    Choices are mean, median, byrow, byrowsmooth,  byrowcol or byrowcolsmooth
-    subtraction of a bias calculated in either a given set of columns or using
-    DATASEC to infer the overscan region. The rows-and-columns method uses both
-    the serial and parallel oscan to account for the shape of the bias
-    (particularly for ITL sensors)
+    Choices are 'None', 'mean' 'median', 'by(row|col)', 'by(row|col)smooth' and
+    applying only to parallel on lsste2v's: 'lsste2v'
+
+    Bias estimates are calculated using DATASEC to infer the overscan regions.
+
+    The fits.ImageHDU is operated on directly
     """
     (datasec, soscan, poscan) = get_data_oscan_slices(hdu)
+    logging.debug("bias stype=%s ptype=%s", stype, ptype)
+    pcnt = 30.0  # percentile for signal est
+    max_rn = 7.0
+    rn_est = min(np.std(hdu.data[poscan[0], soscan[1]]), max_rn)
 
-    if bstring == "overscan":
-        logging.debug("use overscan region in hdu:%s", hdu.name)
-    elif len(bstring) >= 3:  # user supplies column selection
-        # eg. a:b or -a: is minimum spec size, peel off outer brackets
-        try:
-            logging.debug("use %s cols in hdu:%s bias subtraction", bstring, hdu.name)
-            # reg = re.sub(r"^\[([^\]]*)\]$", r"\1", bstring)
-            # (x1, x2) = re.match(r"([0-9]+):([0-9]+)$", reg).groups()
-            rslice = str_to_slices(bstring)
-            soscan = (soscan[0], rslice[0])
-            # soscan = (soscan[0], slice(int(x1), int(x2)))
-        except SyntaxError as se:
-            logging.error("SyntaxError: %s", se)
-            logging.error("bad bias selection %s", bstring)
-            sys.exit(1)
-    else:
-        logging.error("bad bias selection %s", bstring)
-        sys.exit(1)
-
-    logging.debug("biastype=%s", btype)
-    # default method is "byrow"
-    if btype in ("byrow", "byrowsmooth", "byrowcol", "byrowcolsmooth", "lsste2v"):
-        # get sigma clipped median per row
-        so_avg, so_bias, so_std = stats.sigma_clipped_stats(hdu.data[soscan], axis=1)
-        if re.search(r"smooth", btype):  # smooth the row bias vector a bit
-            logging.debug("smoothing serial overscan with Gaussian1DKernel")
-            kernel = Gaussian1DKernel(1)
-            # don't process the first column
-            so_bias = convolve(so_bias, kernel, boundary="extend")
-        # convert shape from (n,) to (n, 1)
-        so_bias = so_bias.reshape(np.shape(so_bias)[0], 1)
-        logging.debug("np.shape(so_bias)=%s", np.shape(so_bias))
-        hdu.data = hdu.data - so_bias.data
-        if btype in ("byrowcol", "byrowcolsmooth"):
-            # get sigma clipped median per column
-            po_avg, po_bias, po_std = stats.sigma_clipped_stats(
-                hdu.data[poscan], axis=0
+    # First pass uses serial overscan region
+    if stype:
+        if stype in ("byrow", "byrowsmooth"):
+            so_med = np.percentile(hdu.data[soscan], 50, axis=1)
+            # clean up any crazy rows (eg overflow in serial from hot column)
+            so_med_avg, so_med_med, so_med_std = stats.sigma_clipped_stats(so_med)
+            logging.debug(
+                "so_med_avg=%.3f, so_med_med=%.3f, so_med_std=%.3f",
+                so_med_avg,
+                so_med_med,
+                so_med_std,
             )
-            if re.search(r"smooth", btype):  # smooth col bias vector a bit
-                logging.debug("smoothing par overscan with Gaussian1DKernel")
+            so_med_bad_ind = np.nonzero(np.abs(so_med - so_med_med) > 100 * rn_est)
+            logging.debug("so_med_bad_ind=%s", so_med_bad_ind)
+            logging.debug(
+                "replacing %d values in so_med[] with %.3f",
+                len(so_med_bad_ind),
+                so_med_med,
+            )
+            so_med[so_med_bad_ind] = so_med_med
+            if stype in ("byrowsmooth",):
+                logging.debug("smoothing serial overscan with Gaussian1DKernel")
                 kernel = Gaussian1DKernel(1)
-                # don't process the first column
-                po_bias[1:] = convolve(po_bias[1:], kernel, boundary="extend")
+                so_med = convolve(so_med, kernel, boundary="extend")
+            # convert shape from (n,) to (n, 1)
+            logging.debug("mean serial overscan subtraction: %d", np.median(so_med))
+            logging.debug("first 20 rows: \n%s", so_med[0:20])
+            so_med = so_med.reshape(np.shape(so_med)[0], 1)
+            hdu.data = hdu.data - so_med
+        elif stype == "mean":
+            hdu.data = hdu.data - np.mean(hdu.data[soscan])
+        elif stype == "median":
+            hdu.data = hdu.data - np.median(hdu.data[soscan])
+        else:
+            logging.error("stype: %s not valid", stype)
+            sys.exit(1)
+
+    # Second pass uses parallel overscan
+    if ptype:
+        if ptype in ("bycol", "bycolfilter", "bycolsmooth", "lsste2v"):
+            if ptype in ("bycol"):
+                bias_row = np.percentile(hdu.data[poscan[0], :], pcnt, axis=0)
+            if ptype in ("bycolfilter", "bycolsmooth", "lsste2v"):
+                bias_row = get_bias_filtered_est_row(hdu)
+                if bias_row is None:
+                    logging.warning("could not perform parallel bias subtraction")
+                    return
+                if ptype in ("bycolsmooth"):
+                    logging.debug("smoothing par overscan with Gaussian1DKernel")
+                    kernel = Gaussian1DKernel(2)
+                    # don't smooth the prescan
+                    bias_row[datasec[1].start :] = convolve(
+                        bias_row[datasec[1].start :], kernel, boundary="extend"
+                    )
             # convert shape from (,n) to (1, n)
-            po_bias = po_bias.reshape(1, np.shape(po_bias)[0])
-            logging.debug("np.shape(po_bias)=%s", np.shape(po_bias))
-            hdu.data = hdu.data - po_bias.data
-    elif btype == "mean":
-        bias = np.mean(hdu.data[soscan])
-        hdu.data = hdu.data - bias
-    elif btype == "median":
-        bias = np.median(hdu.data[soscan])
-        hdu.data = hdu.data - bias
+            bias_row = bias_row.reshape(1, np.shape(bias_row)[0])
+            hdu.data = hdu.data - bias_row.data
+            logging.debug("bias_row_median = %.2f", np.median(bias_row.data))
+        elif ptype == "mean":
+            hdu.data = hdu.data - np.mean(hdu.data[poscan])
+        elif ptype == "median":
+            hdu.data = hdu.data - np.median(hdu.data[poscan])
+        else:
+            logging.error("ptype: %s not valid", ptype)
+            sys.exit(1)
+
+    # third pass to take out special bias effect on selected e2v CCDs
+    if ptype and ptype in ("lsste2v"):
+        # subtract an exp decay with amplitude from prescan along each row
+        a0 = np.mean(hdu.data[:, 1 : datasec[1].start], axis=1)
+        naxis1 = np.shape(hdu.data)[1]
+        i0 = (-3.0 / naxis1) * np.arange(naxis1)  # exp decay row vector
+        e0 = np.exp(i0)
+        # subtract exp decay function along each row
+        for i in np.arange(np.size(hdu.data[:, 0])):
+            hdu.data[i, :] -= a0[i] * e0
+        logging.debug("third_pass_median = %.2f", np.median(a0) * np.median(e0))
+
+
+def eper_serial(hdu):
+    """
+    Given datasec and serial overscan as slices, calculate
+    eper using the first ecols=3 columns of serial overscan
+    """
+    datasec, soscan, poscan = get_data_oscan_slices(hdu)
+    ecols = 3  # number of columns used for eper signal
+    pcnt = 30.0  # percentile for signal est
+    ncols = datasec[1].stop - datasec[1].start
+    scols = int(0.20 * ncols)
+
+    # signal estimate 1-d array (30% is ~sky)
+    sig_est_col = np.percentile(
+        hdu.data[datasec[0], (datasec[1].stop - scols) : datasec[1].stop], pcnt, axis=1
+    )
+    # deferred charge estimate (before bias subtraction)
+    dc_sum_col = np.sum(
+        hdu.data[datasec[0], soscan[1].start : (soscan[1].start + ecols)], axis=1
+    )
+    bias_est_col = np.median(hdu.data[datasec[0], (soscan[1].start + ecols) :], axis=1)
+
+    sig_est_col = sig_est_col - bias_est_col
+    dc_est_col = dc_sum_col - ecols * bias_est_col
+
+    dc_avg, dc_med, dc_std = stats.sigma_clipped_stats(dc_est_col)
+    sig_avg, sig_med, sig_std = stats.sigma_clipped_stats(sig_est_col)
+
+    # if dc_avg > 0 and sig_avg > 0:
+    cti_est = dc_avg / sig_avg / ncols
+
+    if cti_est > -0.0001:
+        eper = 1 - cti_est
+        return eper
     else:
-        logging.error("btype: %s not valid", btype)
-        sys.exit(1)
+        logging.debug("s-cti est was < 0")
+        return None
+
+
+def get_bias_filtered_est_row(hdu):
+    """
+    Given hdu, produce a suitable parallel bias estimate for subtraction
+    An effort is made to deal with saturation until it gets too high.
+    The filtered row attempts to interpolate across regions with bad/hot columns
+    """
+    datasec, soscan, poscan = get_data_oscan_slices(hdu)
+    # parameters
+    pcnt = 30.0  # percentile to use for bias estimate
+    max_rn = 7.0
+    srows = int(0.05 * (datasec[0].stop - datasec[0].start))
+    pstart = poscan[0].start
+    pstop = poscan[0].stop
+    erows = 6
+    if pstop - pstart < 2 * erows:
+        logging.warning("Not enough parallel overscan rows to estimate pbias row")
+        return None
+    bias_est_row = np.percentile(hdu.data[poscan[0].start + erows :, :], pcnt, axis=0)
+    bias_base = np.percentile(hdu.data[poscan[0], datasec[1]], pcnt)
+    bias_floor = np.percentile(hdu.data[poscan[0], soscan[1]], pcnt)
+    rn_est = min(np.std(hdu.data[poscan[0], soscan[1]]), max_rn)
+    sig_est = np.median(hdu.data[datasec[0].stop - srows : datasec[0].stop, datasec[1]])
+    logging.debug("sig_est = %.2f", sig_est)
+    logging.debug("bias_floor = %.2f", bias_floor)
+    logging.debug("bias_base = %.2f", bias_base)
+    logging.debug("rn_est = %.2f", rn_est)
+    # bad columns are ones that are above 25% of signal after erows into overscan
+    # or if the signal is very small they have improbably high value
+    bad_ind = np.array(
+        np.nonzero(
+            np.median(
+                hdu.data[pstart + erows : pstart + 2 * erows, datasec[1]], axis=0,
+            )
+            > bias_floor + sig_est / 4.0 + 50 * rn_est
+        )
+    )
+    # add +/-3 adjacent columns to the bad list
+    bad_ind = np.union1d(np.union1d(bad_ind - 1, bad_ind), bad_ind + 1)
+    bad_ind = np.union1d(np.union1d(bad_ind - 1, bad_ind), bad_ind + 1)
+    bad_ind = np.union1d(np.union1d(bad_ind - 1, bad_ind), bad_ind + 1)
+    bad_ind = np.intersect1d(np.arange(datasec[1].stop - datasec[1].start), bad_ind)
+    if np.size(bad_ind) > 0:
+        logging.debug(
+            "possible hot cols: %s", bad_ind + datasec[1].start,
+        )
+    if np.size(bad_ind) > 0.5 * (datasec[1].stop - datasec[1].start):
+        return None
+    # good columns are the complementary set
+    good_ind = np.setdiff1d(np.arange(datasec[1].stop - datasec[1].start), bad_ind)
+    good_ind = good_ind + datasec[1].start
+    # mask off and interpolate across rejected columns, leave pre/overscan alone
+    x = np.arange(datasec[1].start, datasec[1].stop)  # x coords
+    interp_function = interp1d(
+        good_ind, bias_est_row[good_ind], bounds_error=False, fill_value="extrapolate",
+    )
+    bias_est_row[datasec[1].start : datasec[1].stop] = interp_function(x)
+    bias_est_row = bias_est_row - bias_floor  # ensure dbl oscan no change
+    logging.debug("bias_est_row = %s", bias_est_row[bad_ind])
+    return bias_est_row
+
+
+def eper_parallel(hdu):
+    """
+    Given hdu, calculate eper using the first erows (6) rows of parallel overscan
+    Note once eper <~ 0.998 it is not accurate as deferred charge then extends
+    out beyond the 6 rows used
+    """
+    datasec, soscan, poscan = get_data_oscan_slices(hdu)
+    # need a return None if any of those are missing
+
+    erows = 8  # number of rows used to measure deferred charge
+    nrows = datasec[0].stop - datasec[0].start
+    srows = int(0.05 * nrows)
+    pstart = poscan[0].start
+    pstop = poscan[0].stop
+    prows = pstop - pstart
+
+    if prows < 2 * erows:
+        logging.warning("parallel overscan too small to estimate cte")
+        return None
+
+    # bias floor and read noise estimate using double overscan region
+    bias_floor = np.percentile(hdu.data[poscan[0], soscan[1]], 30)
+    logging.debug("bias_floor = %.2f", bias_floor)
+    read_noise_est = min(np.std(hdu.data[poscan[0], soscan[1]]), 7.0)
+    logging.debug("read_noise_est = %.2f", read_noise_est)
+
+    # signal estimate 1-d array (use last 5% of rows), not bias subtracted
+    sig_est_row = np.median(
+        hdu.data[datasec[0].stop - srows : datasec[0].stop, datasec[1]], axis=0
+    )
+    sig_est0 = np.percentile(sig_est_row, 20) - bias_floor  # estimate
+    logging.debug("sig_est0 = %.2f", sig_est0)
+    #  get column indices to use in determining p-cti
+    if sig_est0 > int(1 << 14) * read_noise_est:  # assuming ~16k dynamic range
+        logging.debug("using high signal case")
+        dc_est_row = (
+            np.sum(hdu.data[poscan[0], datasec[1]], axis=0) - bias_floor * prows
+        )
+        sig_est_row = sig_est_row - bias_floor
+        bad_ind = np.array(np.nonzero(dc_est_row > sig_est0 * (prows - erows)))
+    else:
+        logging.debug("using NOT high signal case")
+        # bias estimate
+        bias_est_row = np.percentile(
+            hdu.data[pstart + erows :, datasec[1]], 30.0, axis=0
+        )
+        # deferred charge estimate, use complement of bias_est_rows
+        dc_est_row = (
+            np.sum(hdu.data[pstart : pstart + erows, datasec[1]], axis=0)
+            - bias_est_row * erows
+        )
+        sig_est_row = sig_est_row - bias_est_row
+
+        # estimate bias level by filtering out high end of distribution
+        bias_base = np.percentile(bias_est_row, 20)
+        logging.debug("bias_base = %.2f", bias_base)
+        # bad columns are ones that are still 25% of signal after erows into overscan
+        # or if the signal is very small they have improbably high value
+        bad_ind = np.array(
+            np.nonzero(
+                np.mean(
+                    hdu.data[pstart + erows : pstart + 2 * erows, datasec[1],], axis=0,
+                )
+                > bias_base + sig_est0 / 4.0 + 50 * read_noise_est
+            )
+        )
+        logging.debug(
+            "erows * np.sum(bias_est_row - bias_floor) = %.2f",
+            erows * (np.sum(bias_est_row - bias_floor)),
+        )
+    # add +/-3 adjacent columns to the bad list
+    bad_ind = np.union1d(np.union1d(bad_ind - 1, bad_ind), bad_ind + 1)
+    bad_ind = np.union1d(np.union1d(bad_ind - 1, bad_ind), bad_ind + 1)
+    bad_ind = np.union1d(np.union1d(bad_ind - 1, bad_ind), bad_ind + 1)
+    bad_ind = np.intersect1d(np.arange(datasec[1].stop - datasec[1].start), bad_ind)
+    # good columns are the complementary set
+    good_ind = np.setdiff1d(np.arange(datasec[1].stop - datasec[1].start), bad_ind)
+
+    dc_est = np.sum(dc_est_row[good_ind])
+    sig_est = np.sum(sig_est_row[good_ind])
+    logging.debug("%d cols had usable signal in eper_parallel", np.size(good_ind))
+    if np.size(bad_ind) > 0:
+        logging.debug(
+            "possible hot cols: %s",
+            np.intersect1d(np.arange(datasec[1].stop - datasec[1].start), bad_ind)
+            + datasec[1].start,
+        )
+    logging.debug("bias_floor = %.2f", bias_floor)
+    logging.debug("read_noise_est = %.2f", read_noise_est)
+    logging.debug("dc_est = %.2f  sig_est = %.2f  nrows = %d", dc_est, sig_est, nrows)
+    if np.size(good_ind) < 0.5 * (datasec[1].stop - datasec[1].start):
+        logging.debug("not enough good columns to determine p-cte")
+        return None
+
+    cti_est = dc_est / sig_est / nrows
+
+    if cti_est > -0.0001:
+        eper = 1 - cti_est
+        return eper
+    else:
+        logging.warning("p-cti est was < 0")
+        return None
 
 
 def files_to_hdulists(ifiles: list, mmp: bool = True) -> list:
@@ -480,8 +723,8 @@ def image_combine_hdu(
     method: list,
     region: tuple,
     bimage: fits.HDUList,
-    bstring: str,
-    btype: str,
+    stype: str,
+    ptype: str,
     scaling: tuple,
     hduo: fits.ImageHDU,
 ):
@@ -498,8 +741,8 @@ def image_combine_hdu(
     method: [median], [average], [sigmaclip, sigmaval], [rank, percentile]
     region: (yslice, xslice) specifying ROI to process, full image if None
     bimage: fits.HDUList object with (bias) image to subtract
-    bstring: param for subtract_bias() function (in this module)
-    btype: param for subtract_bias()
+    stype: param for subtract_bias() function (in this module)
+    ptype: param for subtract_bias() function (in this module)
     scaling: (yslice, xslice) specifying ROI to use for scaling
     hduo: a basic ImageHDU object that is modified and is the functions result
     """
@@ -507,8 +750,8 @@ def image_combine_hdu(
     hdu_scale = []
     for im in iimages:
         hdu = im[hduid].copy()
-        if bstring:
-            subtract_bias(bstring, btype, hdu)
+        if stype | ptype:
+            subtract_bias(stype, ptype, hdu)
         if scaling:
             svalue = np.median(hdu.data[scaling[0], scaling[1]])
             hdu_scale.append(svalue)
@@ -530,16 +773,16 @@ def image_combine_hdu(
             hdudata = hdudata * hduscale
 
     logging.debug(f"using method: {method}")
-    if re.match(r"mea", method[0]):
+    if re.match(r"^mea", method[0]):
         hduo.data = np.mean(np.array(hdudata_list), axis=0)
-    elif re.match(r"med", method[0]):
+    elif re.match(r"^med", method[0]):
         hduo.data = np.median(np.array(hdudata_list), axis=0)
-    elif re.match(r"sig", method[0]):  # this one is ugly
+    elif re.match(r"^sig", method[0]):  # this one is ugly
         hduo.data = np.nanmean(
             stats.sigma_clip(np.array(hdudata_list), method[1], axis=0, masked=False),
             axis=0,
         )
-    elif re.match(r"ran", method[0]):
+    elif re.match(r"^ran", method[0]):
         hduo.data = np.percentile(np.array(hdudata_list), method[1], axis=0)
     else:
         logging.error("image combine method %s not recognized", method[0])

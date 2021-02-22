@@ -85,7 +85,7 @@ def get_fig_and_axis(
     return (fig, axes)
 
 
-def set_fig_title(title, string_list, fig):
+def set_fig_title(title: str, string_list: list, fig):
     """
     Given the title option string, the file list and the figure,
     generate the suptitle.
@@ -115,8 +115,8 @@ def plot_hdus(optdict: dict, hduids: list, hdulist: fits.HDUList, pax: plt.axes)
         ---       -----
         col       region spec list
         row       region spec list
-        bias      "overscan" or 'x1:x2' column spec
-        btype     mean|median|byrow|byrowsmooth|byrowcol|byrowcolsmooth
+        stype     mean|median|byrow|byrowsmooth
+        ptype     mean|median|bycol|bycolsmooth|lsste2v|lsstitl
         ltype     median|mean|clipped|series
         steps     default|steps-mid
         offset    mean|median|delta
@@ -140,8 +140,10 @@ def plot_hdus(optdict: dict, hduids: list, hdulist: fits.HDUList, pax: plt.axes)
             logging.debug("IndexError: %s", ierr)
             logging.debug("using name=%s", hduid)
             name = "{}".format(hduid)
-        if optdict["bias"]:
-            iu.subtract_bias(optdict["bias"], optdict["btype"], hdu)
+        if not optdict["sbias"] and not optdict["pbias"]:
+            pass
+        else:
+            iu.subtract_bias(optdict["sbias"], optdict["pbias"], hdu)
         (datasec, soscan, poscan) = iu.get_data_oscan_slices(hdu)
         slices = []  # define regions to plot
         for reg in optdict["row"] or optdict["col"]:
@@ -231,10 +233,10 @@ def line_plot(
             exit(1)
 
     #  plot the line: N.B. arrays are 0 indexed, fits is 1 indexed
-    xa = np.arange(len(pix[0,:])) 
-    x = np.arange(xa[slice_spec[1]][0]+1, xa[slice_spec[1]][-1]+1+1)
-    ya = np.arange(len(pix[:,0]))
-    y = np.arange(ya[slice_spec[0]][0]+1, ya[slice_spec[0]][-1]+1+1)
+    xa = np.arange(len(pix[0, :]))
+    x = np.arange(xa[slice_spec[1]][0] + 1, xa[slice_spec[1]][-1] + 1 + 1)
+    ya = np.arange(len(pix[:, 0]))
+    y = np.arange(ya[slice_spec[0]][0] + 1, ya[slice_spec[0]][-1] + 1 + 1)
     if map_axis == 0:
         s = x
     else:  # map_axis == 1:

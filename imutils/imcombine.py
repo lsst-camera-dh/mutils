@@ -94,28 +94,23 @@ def parse_args():
     # bias subtraction controls
     parser.add_argument("--bimage", nargs=1, help="subtract a bias image")
     parser.add_argument(
-        "--bias",
-        nargs='?',
-        metavar="1d-slicespec",
-        const="overscan",
-        help='subtract bias, fmt: "s1:s2"',
+        "--sbias",
+        nargs="?",
+        const="byrow",
+        choices=["mean", "median", "byrow", "byrowsmooth"],
+        help="perform bias estimate removal using serial overscan",
     )
     parser.add_argument(
-        "--btype",
-        default="byrow",
-        choices=[
-            "mean",
-            "median",
-            "byrow",
-            "byrowsmooth",
-            "byrowcol",
-            "byrowcolsmooth",
-        ],
-        help="bias subtraction method, default: $(default)s",
+        "--pbias",
+        nargs="?",
+        const="bycol",
+        choices=["mean", "median", "bycol", "bycolsmooth", "lsste2v", "lsstitl"],
+        help="perform bias estimate removal using par overscan",
     )
     # define scaling region
     parser.add_argument(
-        "--scaling", default=None, nargs='?', help='2d-slicespec: "rows,cols"')
+        "--scaling", default=None, nargs="?", help='2d-slicespec: "rows,cols"'
+    )
     # additional info
     parser.add_argument(
         "--verbose", action="store_true", help="print progress and process info"
@@ -223,8 +218,8 @@ def main():
                 method,
                 region,
                 bimage,
-                optlist.bias,
-                optlist.btype,
+                optlist.sbias,
+                optlist.ptype,
                 scaling,
                 hduo,
             )

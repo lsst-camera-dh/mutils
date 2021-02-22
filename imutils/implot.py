@@ -52,7 +52,7 @@ def parse_args():
         Each region is collapsed to 1-d by taking the mean, median or
         clipped median on the other axis from the plot.  That is for a
         row plot, each column of the region is mapped to a scalar.
-        The "--bias" and "btype" options provide bias subtraction.
+        The "--sbias" and "--pbias" options provide bias subtraction.
         N.B. a "--" is often needed before the file(s) to indicate
         the end of options.
                                 """
@@ -88,25 +88,18 @@ def parse_args():
     )
     parser.add_argument("--overlay", action="store_true", help="all lines in one plot")
     parser.add_argument(
-        "--bias",
+        "--sbias",
         nargs="?",
-        metavar="1d-slicespec",
-        const="overscan",
-        help='slice: "s1:s2"',
+        const="byrow",
+        choices=["mean", "median", "byrow", "byrowsmooth"],
+        help="perform bias estimate removal using serial overscan",
     )
     parser.add_argument(
-        "--btype",
-        default="byrow",
-        choices=[
-            "mean",
-            "median",
-            "byrow",
-            "byrowsmooth",
-            "byrowcol",
-            "byrowcolsmooth",
-            "e2v"
-        ],
-        help="bias subtraction method, default: %(default)s",
+        "--pbias",
+        nargs="?",
+        const="bycol",
+        choices=["mean", "median", "bycol", "bycolfilter", "bycolsmooth", "lsste2v"],
+        help="perform bias estimate removal using par overscan",
     )
     # x-axis matplotlib sharex exclusive
     xgroup = parser.add_mutually_exclusive_group()

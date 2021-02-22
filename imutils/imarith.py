@@ -48,8 +48,8 @@ def parse_args():
         can be a fits image, a single scalar, or a quoted set of scalars
         as in "1.34 1.29" where the number of values must match the desired
         number of requested output data HDUs.
-        The "--bias" option provides bias subtraction and is applied to
-        all images.
+        The "--bias" option provides bias estimate subtraction and is
+        applied to all images.
         Note a "--" is often needed to indicate the end of options.
                                """
         ),
@@ -76,24 +76,18 @@ def parse_args():
     )
     parser.add_argument("--region", nargs=1, help='2d-slicespec: "rows,cols"')
     parser.add_argument(
-        "--bias",
+        "--sbias",
         nargs="?",
-        metavar="1d-slicespec",
-        const="overscan",
-        help='subtract bias, 1d-slicespec: "s1:s2"',
+        const="byrow",
+        choices=["mean", "median", "byrow", "byrowsmooth"],
+        help="perform bias estimate removal using serial overscan",
     )
     parser.add_argument(
-        "--btype",
-        default="byrow",
-        choices=[
-            "mean",
-            "median",
-            "byrow",
-            "byrowsmooth",
-            "byrowcol",
-            "byrowcolsmooth",
-        ],
-        help="bias subtraction method, default is byrow",
+        "--pbias",
+        nargs="?",
+        const="bycol",
+        choices=["mean", "median", "bycol", "bycolfilter", "bycolsmooth", "lsste2v"],
+        help="perform bias estimate removal using par overscan",
     )
     parser.add_argument(
         "--debug", action="store_true", help="print additional debugging messages"
@@ -149,10 +143,12 @@ def main():
         hduo = iu.init_image_hdu(hdu1, hdulisto, region)
 
         # optionally subtract bias
-        if optlist.bias:
-            iu.subtract_bias(optlist.bias, optlist.btype, hdu1)
+        if not optlist.sbias and not optlist.pbias:
+            pass
+        else:
+            iu.subtract_bias(optlist.sbias, optlist.pbias, hdu1)
             if hdulist2:
-                iu.subtract_bias(optlist.bias, optlist.btype, hdu2)
+                iu.subtract_bias(optlist.sbias, optlist.pbias, hdu2)
         #
         # do the arithmetic
         if hdulist2:

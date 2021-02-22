@@ -45,7 +45,7 @@ regexes[1]=${1}'/[DACO].*I$'  # board currents
 regexes[2]=${1}'/[PSR].*[UL]$'  # clock levels
 regexes[3]=${1}'/S.*/.*V$'      # bias voltages
 regexes[4]=${1}'/Temp[0-9]*$' # reb temps
-regexes[5]=${1}'/Aspic[UL]/Temp.$' # aspic temps
+#regexes[5]=${1}'/Aspic[UL]/Temp.$' # aspic temps
 
 if [ $duration"XXX" == "XXX" ] ; then
       duration=10m
@@ -55,5 +55,6 @@ if [ $timebins ] ; then
       timebins='--timebins'
 fi
 
-
+#echo trender.py ${st} --dur $duration ${timebins} --title \"Reb Summary: ${1}\" --plot --layout 3x2 --outside --overlayregex -- \"${regexes[@]}\"
 trender.py ${st} --dur $duration ${timebins} --title "Reb Summary: ${1}" --plot --layout 3x2 --outside --overlayregex -- "${regexes[@]}"
+

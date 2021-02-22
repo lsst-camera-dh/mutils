@@ -32,9 +32,11 @@ done
 shift $((OPTIND - 1))
 
 declare -a regexes
-regexes[0]=${1}'/[CO].*I'       # board currents
-regexes[1]=${1}'/[PSR].*[UL]$'  # clock levels
-regexes[2]=${1}'/S../.*V$'      # bias voltages
+regexes+=(${1}'/[DA].*I')      # digital & analog currents
+regexes+=(${1}'/[CO].*I')       # clocks and OD currents
+regexes+=(${1}'/[PSR].*[UL]$')  # clock levels
+regexes+=(${1}'/S../.*V$')      # bias voltages
+
 if [ $duration"XXX" == "XXX" ] ; then
       duration=8s
 fi
@@ -45,7 +47,7 @@ fi
 
 sarg=
 if [ $savePlot ] ; then
-    sarg=" --save /tmp/"$(echo -n $1 | sed 's?/?_?g')"_TestShorts.png"
+    sarg=" --save "$(echo -n $1 | sed 's?/?_?g' | sed 's?\^??' )"_TestShorts.png"
 fi
 
-trender.py --lay 3x1 --out ${sarg} --start "${2}" --title "testCCDShorts:${1}" --overlayreg --plot --dur $duration --fmt 'o-' -- "${regexes[@]}"
+trender.py --lay 4x1 --out ${sarg} --start "${2}" --title "testCCDShorts:${1}" --overlayreg --plot --dur $duration --fmt 'o-' -- "${regexes[@]}"
