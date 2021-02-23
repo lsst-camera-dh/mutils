@@ -380,20 +380,9 @@ def subtract_bias(stype: str, ptype: str, hdu: fits.ImageHDU):
         if stype in ("byrow", "byrowsmooth"):
             so_med = np.percentile(hdu.data[soscan], 50, axis=1)
             # clean up any crazy rows (eg overflow in serial from hot column)
-            so_med_avg, so_med_med, so_med_std = stats.sigma_clipped_stats(so_med)
-            logging.debug(
-                "so_med_avg=%.3f, so_med_med=%.3f, so_med_std=%.3f",
-                so_med_avg,
-                so_med_med,
-                so_med_std,
-            )
+            so_med_med = np.median(so_med)
             so_med_bad_ind = np.nonzero(np.abs(so_med - so_med_med) > 100 * rn_est)
-            logging.debug("so_med_bad_ind=%s", so_med_bad_ind)
-            logging.debug(
-                "replacing %d values in so_med[] with %.3f",
-                len(so_med_bad_ind),
-                so_med_med,
-            )
+            logging.debug("anomalous soscan rows: %s", so_med_bad_ind)
             so_med[so_med_bad_ind] = so_med_med
             if stype in ("byrowsmooth",):
                 logging.debug("smoothing serial overscan with Gaussian1DKernel")
@@ -415,14 +404,14 @@ def subtract_bias(stype: str, ptype: str, hdu: fits.ImageHDU):
     # Second pass uses parallel overscan
     if ptype:
         if ptype in ("bycol", "bycolfilter", "bycolsmooth", "lsste2v"):
-            if ptype in ("bycol"):
+            if ptype == "bycol":
                 bias_row = np.percentile(hdu.data[poscan[0], :], pcnt, axis=0)
-            if ptype in ("bycolfilter", "bycolsmooth", "lsste2v"):
+            elif ptype in ("bycolfilter", "bycolsmooth", "lsste2v"):
                 bias_row = get_bias_filtered_est_row(hdu)
                 if bias_row is None:
                     logging.warning("could not perform parallel bias subtraction")
                     return
-                if ptype in ("bycolsmooth"):
+                if ptype == "bycolsmooth":
                     logging.debug("smoothing par overscan with Gaussian1DKernel")
                     kernel = Gaussian1DKernel(2)
                     # don't smooth the prescan
@@ -442,7 +431,7 @@ def subtract_bias(stype: str, ptype: str, hdu: fits.ImageHDU):
             sys.exit(1)
 
     # third pass to take out special bias effect on selected e2v CCDs
-    if ptype and ptype in ("lsste2v"):
+    if ptype and ptype == "lsste2v":
         # subtract an exp decay with amplitude from prescan along each row
         a0 = np.mean(hdu.data[:, 1 : datasec[1].start], axis=1)
         naxis1 = np.shape(hdu.data)[1]
@@ -450,6 +439,8 @@ def subtract_bias(stype: str, ptype: str, hdu: fits.ImageHDU):
         e0 = np.exp(i0)
         # subtract exp decay function along each row
         for i in np.arange(np.size(hdu.data[:, 0])):
+            if abs(a0[i]) > 50 * rn_est:  # limit this to sensible values
+                a0[i] = 0.0
             hdu.data[i, :] -= a0[i] * e0
         logging.debug("third_pass_median = %.2f", np.median(a0) * np.median(e0))
 
@@ -505,7 +496,7 @@ def get_bias_filtered_est_row(hdu):
     srows = int(0.05 * (datasec[0].stop - datasec[0].start))
     pstart = poscan[0].start
     pstop = poscan[0].stop
-    erows = 6
+    erows = 8
     if pstop - pstart < 2 * erows:
         logging.warning("Not enough parallel overscan rows to estimate pbias row")
         return None
