@@ -11,7 +11,7 @@ from astropy.io import fits
 from astropy import stats
 from astropy import wcs
 from astropy.utils.exceptions import AstropyWarning
-from astropy.convolution import convolve, Gaussian1DKernel, RickerWavelet1DKernel
+from astropy.convolution import convolve, Gaussian1DKernel
 import numpy as np
 from scipy.ndimage import minimum_filter1d
 from scipy.ndimage import percentile_filter
