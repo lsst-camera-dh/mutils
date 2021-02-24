@@ -16,7 +16,6 @@ import numpy as np
 from scipy.ndimage import minimum_filter1d
 from scipy.ndimage import percentile_filter
 from scipy.interpolate import interp1d
-import baseline
 
 
 def create_output_hdulist(hdulisti: fits.HDUList, argv: list) -> fits.HDUList:
