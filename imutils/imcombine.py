@@ -104,7 +104,7 @@ def parse_args():
         "--pbias",
         nargs="?",
         const="bycol",
-        choices=["mean", "median", "bycol", "bycolsmooth", "lsste2v", "lsstitl"],
+        choices=["mean", "median", "bycol", "bycolsmooth", "bycolfilter", "lsste2v"],
         help="perform bias estimate removal using par overscan",
     )
     # define scaling region

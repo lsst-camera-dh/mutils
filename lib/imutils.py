@@ -16,6 +16,7 @@ import numpy as np
 from scipy.ndimage import minimum_filter1d
 from scipy.ndimage import percentile_filter
 from scipy.interpolate import interp1d
+import baseline
 
 
 def create_output_hdulist(hdulisti: fits.HDUList, argv: list) -> fits.HDUList:
@@ -443,6 +444,7 @@ def subtract_bias(stype: str, ptype: str, hdu: fits.ImageHDU):
                 a0[i] = 0.0
             hdu.data[i, :] -= a0[i] * e0
         logging.debug("third_pass_median = %.2f", np.median(a0) * np.median(e0))
+        logging.debug("a0[0:20] = %s", a0[0:20])
 
 
 def eper_serial(hdu):
@@ -491,32 +493,40 @@ def get_bias_filtered_est_row(hdu):
     """
     datasec, soscan, poscan = get_data_oscan_slices(hdu)
     # parameters
-    pcnt = 30.0  # percentile to use for bias estimate
+    pcnt = 40.0  # percentile to use for bias estimate
     max_rn = 7.0
     srows = int(0.05 * (datasec[0].stop - datasec[0].start))
     pstart = poscan[0].start
     pstop = poscan[0].stop
     erows = 8
+    dcols = datasec[1].stop - datasec[1].start
     if pstop - pstart < 2 * erows:
         logging.warning("Not enough parallel overscan rows to estimate pbias row")
         return None
     bias_est_row = np.percentile(hdu.data[poscan[0].start + erows :, :], pcnt, axis=0)
-    bias_base = np.percentile(hdu.data[poscan[0], datasec[1]], pcnt)
-    bias_floor = np.percentile(hdu.data[poscan[0], soscan[1]], pcnt)
+    bias_base = np.median(hdu.data[poscan[0].stop - erows :, datasec[1]])
+    bias_floor = np.percentile(hdu.data[poscan[0].start + erows :, soscan[1]], pcnt)
     rn_est = min(np.std(hdu.data[poscan[0], soscan[1]]), max_rn)
-    sig_est = np.median(hdu.data[datasec[0].stop - srows : datasec[0].stop, datasec[1]])
+    sig_est = np.percentile(
+        hdu.data[datasec[0].stop - srows : datasec[0].stop, datasec[1]], pcnt
+    )
     logging.debug("sig_est = %.2f", sig_est)
     logging.debug("bias_floor = %.2f", bias_floor)
     logging.debug("bias_base = %.2f", bias_base)
     logging.debug("rn_est = %.2f", rn_est)
-    # bad columns are ones that are above 25% of signal after erows into overscan
-    # or if the signal is very small they have improbably high value
+    # build a baseline estimate (trying to use simplest possible alg
+    # trying to accomodate huge hot col blow-outs and bias structure of 50*rn
+    bias_base_row = minimum_filter1d(
+        bias_est_row[datasec[1]], int(dcols / 10), mode="nearest"
+    )
+    bias_base_row[bias_base_row > bias_base + 10 * rn_est] = bias_base
+    # bad columns are ones that are significantly above bias_base_row
     bad_ind = np.array(
         np.nonzero(
             np.median(
                 hdu.data[pstart + erows : pstart + 2 * erows, datasec[1]], axis=0,
             )
-            > bias_floor + sig_est / 4.0 + 50 * rn_est
+            > bias_base_row + 100 * rn_est
         )
     )
     # add +/-3 adjacent columns to the bad list
@@ -530,17 +540,26 @@ def get_bias_filtered_est_row(hdu):
         )
     if np.size(bad_ind) > 0.5 * (datasec[1].stop - datasec[1].start):
         return None
-    # good columns are the complementary set
+    # replace rejected values in bias est with fixed reasonable value
     good_ind = np.setdiff1d(np.arange(datasec[1].stop - datasec[1].start), bad_ind)
     good_ind = good_ind + datasec[1].start
-    # mask off and interpolate across rejected columns, leave pre/overscan alone
-    x = np.arange(datasec[1].start, datasec[1].stop)  # x coords
-    interp_function = interp1d(
-        good_ind, bias_est_row[good_ind], bounds_error=False, fill_value="extrapolate",
+    bad_ind = bad_ind + datasec[1].start
+    replacement_value = np.percentile(bias_est_row[good_ind], 80)
+    bias_est_row[bad_ind] = replacement_value
+    # we want to normalize the bias_est_row so that subtracting it leaves the
+    # last erows of poscan at the same level (after filtering) on the soscan boundary
+    xcols = int((soscan[1].stop - soscan[1].start) / 2)
+    boundary_ind = np.intersect1d(
+        np.arange(datasec[1].stop - xcols, datasec[1].stop), good_ind
     )
-    bias_est_row[datasec[1].start : datasec[1].stop] = interp_function(x)
-    bias_est_row = bias_est_row - bias_floor  # ensure dbl oscan no change
-    logging.debug("bias_est_row = %s", bias_est_row[bad_ind])
+    b1 = np.median(bias_est_row[boundary_ind])
+    logging.debug("b1 = %.2f", b1)
+    bias_base = np.percentile(hdu.data[poscan[0].stop - erows :, good_ind], pcnt)
+    logging.debug("bias_base = %.2f (good columns only)", bias_base)
+    bias_est_row[datasec[1].start : datasec[1].stop] -= b1
+    if np.size(bad_ind) > 0:
+        logging.debug("bias_est_row[@hot_cols] = %s", bias_est_row[bad_ind])
+    logging.debug("bias_est_row = %s", bias_est_row)
     return bias_est_row
 
 
