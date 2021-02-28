@@ -4,18 +4,15 @@ Common image utility functions
 import re
 import sys
 import logging
-import warnings
 import datetime
 import os.path
 from astropy.io import fits
 from astropy import stats
 from astropy import wcs
-from astropy.utils.exceptions import AstropyWarning
-from astropy.convolution import convolve, Gaussian1DKernel
+from astropy.convolution import convolve, Gaussian1DKernel, interpolate_replace_nans
 import numpy as np
+import math
 from scipy.ndimage import minimum_filter1d
-from scipy.ndimage import percentile_filter
-from scipy.interpolate import interp1d
 
 
 def create_output_hdulist(hdulisti: fits.HDUList, argv: list) -> fits.HDUList:
@@ -362,8 +359,8 @@ def subtract_bias(stype: str, ptype: str, hdu: fits.ImageHDU):
     Subtract a bias estimate (using overscans) from an hdu.
     Operates in-place on the Image.HDU parameter
 
-    Choices are 'None', 'mean' 'median', 'by(row|col)', 'by(row|col)smooth' and
-    applying only to parallel on lsste2v's: 'lsste2v'
+    Choices are 'None', 'mean' 'median', 'by(row|col)', 'by(row|col)filter' and
+    'by(row|col)smooth' and 'byrowe2v,', 'byrowsmoothe2v'
 
     Bias estimates are calculated using DATASEC to infer the overscan regions.
 
@@ -377,14 +374,14 @@ def subtract_bias(stype: str, ptype: str, hdu: fits.ImageHDU):
 
     # First pass uses serial overscan region
     if stype:
-        if stype in ("byrow", "byrowsmooth"):
+        if stype in ("byrow", "byrowsmooth", "byrowe2v", "byrowsmoothe2v"):
             so_med = np.percentile(hdu.data[soscan], 50, axis=1)
             # clean up any crazy rows (eg overflow in serial from hot column)
             so_med_med = np.median(so_med)
             so_med_bad_ind = np.nonzero(np.abs(so_med - so_med_med) > 100 * rn_est)
             logging.debug("anomalous soscan rows: %s", so_med_bad_ind)
             so_med[so_med_bad_ind] = so_med_med
-            if stype in ("byrowsmooth",):
+            if stype in ("byrowsmooth", "byrowsmoothe2v"):
                 logging.debug("smoothing serial overscan with Gaussian1DKernel")
                 kernel = Gaussian1DKernel(1)
                 so_med = convolve(so_med, kernel, boundary="extend")
@@ -401,12 +398,31 @@ def subtract_bias(stype: str, ptype: str, hdu: fits.ImageHDU):
             logging.error("stype: %s not valid", stype)
             sys.exit(1)
 
-    # Second pass uses parallel overscan
+    # second pass to take out special bias effect on selected e2v CCDs
+    if stype and stype in ("byrowe2v", "byrowsmoothe2v"):
+        # subtract an exp decay with amplitude from prescan along each row
+        a0 = np.mean(hdu.data[:, 1 : datasec[1].start], axis=1)
+        # smooth a?
+        logging.debug("smoothing serial overscan with Gaussian1DKernel")
+        kernel = Gaussian1DKernel(1)
+        a0 = convolve(a0, kernel, boundary="extend")
+        naxis1 = np.shape(hdu.data)[1]
+        i0 = (-3.0 / naxis1) * np.arange(naxis1)  # exp decay row vector
+        e0 = np.exp(i0)
+        # subtract exp decay function along each row
+        for i in np.arange(np.size(hdu.data[:, 0])):
+            if abs(a0[i]) > 50 * rn_est:  # limit this to sensible values
+                a0[i] = 0.0
+            hdu.data[i, :] -= a0[i] * e0
+        logging.debug("third_pass_median = %.2f", np.median(a0) * np.median(e0))
+        logging.debug("a0[0:20] = %s", a0[0:20])
+
+    # final pass uses parallel overscan
     if ptype:
-        if ptype in ("bycol", "bycolfilter", "bycolsmooth", "lsste2v"):
+        if ptype in ("bycol", "bycolfilter", "bycolsmooth"):
             if ptype == "bycol":
                 bias_row = np.percentile(hdu.data[poscan[0], :], pcnt, axis=0)
-            elif ptype in ("bycolfilter", "bycolsmooth", "lsste2v"):
+            elif ptype in ("bycolfilter", "bycolsmooth"):
                 bias_row = get_bias_filtered_est_row(hdu)
                 if bias_row is None:
                     logging.warning("could not perform parallel bias subtraction")
@@ -429,21 +445,6 @@ def subtract_bias(stype: str, ptype: str, hdu: fits.ImageHDU):
         else:
             logging.error("ptype: %s not valid", ptype)
             sys.exit(1)
-
-    # third pass to take out special bias effect on selected e2v CCDs
-    if ptype and ptype == "lsste2v":
-        # subtract an exp decay with amplitude from prescan along each row
-        a0 = np.mean(hdu.data[:, 1 : datasec[1].start], axis=1)
-        naxis1 = np.shape(hdu.data)[1]
-        i0 = (-3.0 / naxis1) * np.arange(naxis1)  # exp decay row vector
-        e0 = np.exp(i0)
-        # subtract exp decay function along each row
-        for i in np.arange(np.size(hdu.data[:, 0])):
-            if abs(a0[i]) > 50 * rn_est:  # limit this to sensible values
-                a0[i] = 0.0
-            hdu.data[i, :] -= a0[i] * e0
-        logging.debug("third_pass_median = %.2f", np.median(a0) * np.median(e0))
-        logging.debug("a0[0:20] = %s", a0[0:20])
 
 
 def eper_serial(hdu):
@@ -484,81 +485,154 @@ def eper_serial(hdu):
         return None
 
 
-def get_bias_filtered_est_row(hdu):
+def get_bad_columns(hdu):
     """
-    Given hdu, produce a suitable parallel bias estimate for subtraction
+    Given hdu, produce an array containing column indices for bad/hot columns
+    based on the parallel overscan.
     An effort is made to deal with saturation until it gets too high.
-    The filtered row attempts to interpolate across regions with bad/hot columns
     """
-    datasec, soscan, poscan = get_data_oscan_slices(hdu)
     # parameters
-    pcnt = 40.0  # percentile to use for bias estimate
-    max_rn = 7.0
-    srows = int(0.05 * (datasec[0].stop - datasec[0].start))
+    max_rn = 7.0  # ceiling for read-noise estimate
+    erows = 8  # number rows skipped (eper region)
+    window_size = 7  # window for forming baseline estimate
+    sat_col_thresh = 80  # thresh for saturated cols (units are read-noise)
+    base_delta_thresh = 8  # thresh for detecting hot cols in shoulder regions
+    nearest_nbr_cnt = 2  # number of nearest neighbors to add to columns
+    seg_merge_dist = 8  # threshold for merging groups of hot columns
+    pcnt = 20  # percentile for base_row used in comparison
+
+    (datasec, soscan, poscan) = get_data_oscan_slices(hdu)
     pstart = poscan[0].start
     pstop = poscan[0].stop
-    erows = 8
-    dcols = datasec[1].stop - datasec[1].start
-    if pstop - pstart < 2 * erows:
-        logging.warning("Not enough parallel overscan rows to estimate pbias row")
-        return None
-    bias_est_row = np.percentile(hdu.data[poscan[0].start + erows :, :], pcnt, axis=0)
-    bias_base = np.median(hdu.data[poscan[0].stop - erows :, datasec[1]])
-    bias_floor = np.percentile(hdu.data[poscan[0].start + erows :, soscan[1]], pcnt)
+    erows = int((pstop - pstart) / 6.0)
     rn_est = min(np.std(hdu.data[poscan[0], soscan[1]]), max_rn)
-    sig_est = np.percentile(
-        hdu.data[datasec[0].stop - srows : datasec[0].stop, datasec[1]], pcnt
-    )
-    logging.debug("sig_est = %.2f", sig_est)
-    logging.debug("bias_floor = %.2f", bias_floor)
-    logging.debug("bias_base = %.2f", bias_base)
-    logging.debug("rn_est = %.2f", rn_est)
-    # build a baseline estimate (trying to use simplest possible alg
-    # trying to accomodate huge hot col blow-outs and bias structure of 50*rn
-    bias_base_row = minimum_filter1d(
-        bias_est_row[datasec[1]], int(dcols / 10), mode="nearest"
-    )
-    bias_base_row[bias_base_row > bias_base + 10 * rn_est] = bias_base
-    # bad columns are ones that are significantly above bias_base_row
-    bad_ind = np.array(
-        np.nonzero(
-            np.median(
-                hdu.data[pstart + erows : pstart + 2 * erows, datasec[1]], axis=0,
-            )
-            > bias_base_row + 100 * rn_est
+    bias_floor = np.percentile(hdu.data[poscan[0], soscan[1]], 30)
+    sat_col_thresh = sat_col_thresh * rn_est  # thresh for major sat cols
+    base_delta_thresh = base_delta_thresh * rn_est  # thresh for shoulders
+    #
+    logging.debug(f"bias_floor={bias_floor}")
+    logging.debug(f"rn_est={rn_est:.2f}")
+    logging.debug(f"sat_col_thresh={sat_col_thresh:.2f}")
+    logging.debug(f"base_delta_thresh={base_delta_thresh:.2f}")
+
+    offset = erows
+    retries = int((pstop - pstart) / offset) - 1
+    while retries > 0:
+        # skips first few rows to avoid cti deferred signal -- matters at high sig
+        test_row = np.percentile(
+            hdu.data[pstart + offset :, datasec[1]], (100.0 - pcnt), axis=0,
         )
-    )
-    # add +/-3 adjacent columns to the bad list
-    bad_ind = np.union1d(np.union1d(bad_ind - 1, bad_ind), bad_ind + 1)
-    bad_ind = np.union1d(np.union1d(bad_ind - 1, bad_ind), bad_ind + 1)
-    bad_ind = np.union1d(np.union1d(bad_ind - 1, bad_ind), bad_ind + 1)
-    bad_ind = np.intersect1d(np.arange(datasec[1].stop - datasec[1].start), bad_ind)
-    if np.size(bad_ind) > 0:
-        logging.debug(
-            "possible hot cols: %s", bad_ind + datasec[1].start,
+        # tail end of parallel overscan to use for base level
+        base_row = np.percentile(hdu.data[pstart + offset :, datasec[1]], pcnt, axis=0)
+        base_row = minimum_filter1d(base_row, window_size, mode="nearest")
+
+        # get the high values in cores of hot/sat column groups
+        bad_ind0 = np.array(np.nonzero(test_row > (bias_floor + sat_col_thresh)))
+        # get the shoulders and small sat columns
+        bad_ind1 = np.array(np.nonzero(test_row > (base_row + base_delta_thresh)))
+        bad_ind = np.union1d(bad_ind0, bad_ind1)
+        logging.debug(f"np.size(bad_ind0)={np.size(bad_ind0)}")
+        logging.debug(f"np.size(bad_ind1)={np.size(bad_ind1)}")
+        logging.debug(f"np.size(bad_ind)={np.size(bad_ind)}")
+        if np.size(bad_ind) == 0:
+            return None
+        elif np.size(bad_ind1) > int(np.size(base_row) / 2):
+            # this is saturation of whole hdu and not hot columns
+            if np.size(bad_ind0) == 0:
+                return None
+            elif np.size(bad_ind0) < int(np.size(base_row) / 2):
+                bad_ind = bad_ind0  # ignore bad_ind1
+                break
+            else:  # skip more rows and try again
+                offset += erows
+                retries -= 1
+                if retries > 0:
+                    logging.debug(f"retrying with offset={offset}")
+        else:
+            retries = 0
+
+    # puff up the bad indices by including {nearest_nbr_cnt} neighbors
+    for i in range(0, nearest_nbr_cnt):
+        bad_ind = np.union1d(np.union1d(bad_ind - 1, bad_ind), bad_ind + 1)
+    logging.debug(f"bad_ind={bad_ind + datasec[1].start}")
+
+    # get disjoint consecutive segments as seg=[startcol, endcol]
+    segs = []
+    seg_start = seg_stop = idx_last = bad_ind[0]
+    for idx in bad_ind[1:]:  # start on second element
+        if idx == idx_last + 1:  # advance the segment
+            seg_stop = idx_last = idx
+        else:  # append and start a new seg
+            segs.append([seg_start, seg_stop])
+            seg_start = idx_last = idx
+    segs.append([seg_start, seg_stop])
+    logging.debug(f"segs={segs}")
+
+    # merge if within merge_distance
+    i = 1
+    while i < len(segs):
+        if segs[i - 1][1] + seg_merge_dist > segs[i][0]:
+            segs[i][0] = segs[i - 1][0]  # expand lower edge of upper segment
+            del segs[i - 1]  # delete the lower segment
+        else:
+            i += 1  # move on
+    logging.debug(f"segs={segs}")
+    new_bad_ind = []
+    segs.sort()
+    for seg in segs:
+        for idx in range(seg[0], seg[1]):
+            new_bad_ind.append(idx)
+    bad_ind = np.array(new_bad_ind)
+
+    if np.size(bad_ind):
+        # trim the ends
+        bad_ind = np.intersect1d(np.arange(datasec[1].stop - datasec[1].start), bad_ind)
+
+    logging.debug(f"bad_ind={bad_ind + datasec[1].start}")
+
+    return bad_ind + datasec[1].start
+
+
+def get_bias_filtered_est_row(hdu):
+    """
+    Given hdu, produce a suitable parallel bias estimate for bycol subtraction
+    The filtered row attempts to interpolate across regions with bad/hot columns
+    """
+    (datasec, soscan, poscan) = get_data_oscan_slices(hdu)
+    pcnt = 20.0  # targets p-oscan matching double overscan in final rows
+    offset = int((poscan[0].stop - poscan[0].start) / 2.0)
+    bias_est_row = np.percentile(hdu.data[poscan[0].start + offset :, :], pcnt, axis=0)
+
+    bad_ind = get_bad_columns(hdu)  # sorted array of column indices
+    if isinstance(bad_ind, np.ndarray) and np.size(bad_ind):
+        if np.size(bad_ind) > 0.5 * np.size(bias_est_row[datasec[1]]):
+            return None
+        # assign np.nan to bad indices
+        bias_est_row[bad_ind] = np.nan
+        # count longest segment of nans to set kernel size
+        count = maxcnt = 0
+        for val in np.isnan(bias_est_row):
+            if val:
+                count += 1
+            else:
+                if count > maxcnt:
+                    maxcnt = count
+                    count = 0
+
+        # replace np.nan's, kernel to span largest nan segment
+        kernel_size = math.ceil(maxcnt / 8) + 2
+        logging.debug(f"using kernel_size={kernel_size}")
+        kernel = Gaussian1DKernel(stddev=kernel_size)
+        bias_est_row[datasec[1]] = interpolate_replace_nans(
+            bias_est_row[datasec[1]], kernel, boundary="extend"
         )
-    if np.size(bad_ind) > 0.5 * (datasec[1].stop - datasec[1].start):
-        return None
-    # replace rejected values in bias est with fixed reasonable value
-    good_ind = np.setdiff1d(np.arange(datasec[1].stop - datasec[1].start), bad_ind)
-    good_ind = good_ind + datasec[1].start
-    bad_ind = bad_ind + datasec[1].start
-    replacement_value = np.percentile(bias_est_row[good_ind], 80)
-    bias_est_row[bad_ind] = replacement_value
-    # we want to normalize the bias_est_row so that subtracting it leaves the
-    # last erows of poscan at the same level (after filtering) on the soscan boundary
-    xcols = int((soscan[1].stop - soscan[1].start) / 2)
-    boundary_ind = np.intersect1d(
-        np.arange(datasec[1].stop - xcols, datasec[1].stop), good_ind
-    )
-    b1 = np.median(bias_est_row[boundary_ind])
-    logging.debug("b1 = %.2f", b1)
-    bias_base = np.percentile(hdu.data[poscan[0].stop - erows :, good_ind], pcnt)
-    logging.debug("bias_base = %.2f (good columns only)", bias_base)
-    bias_est_row[datasec[1].start : datasec[1].stop] -= b1
-    if np.size(bad_ind) > 0:
-        logging.debug("bias_est_row[@hot_cols] = %s", bias_est_row[bad_ind])
-    logging.debug("bias_est_row = %s", bias_est_row)
+
+    # match datasec bias level to double overscan near last rows
+    bias_match_level = np.percentile(hdu.data[poscan[0], soscan[1]], pcnt)
+    soscan_cols = soscan[1].stop - soscan[1].start
+    bias_est_level = np.percentile(bias_est_row[datasec[1].stop - soscan_cols :], pcnt)
+    bias_est_row -= bias_est_level - bias_match_level
+
     return bias_est_row
 
 
@@ -588,7 +662,18 @@ def eper_parallel(hdu):
     read_noise_est = min(np.std(hdu.data[poscan[0], soscan[1]]), 7.0)
     logging.debug("read_noise_est = %.2f", read_noise_est)
 
-    # signal estimate 1-d array (use last 5% of rows), not bias subtracted
+    good_ind = np.array(np.arange(datasec[1].stop - datasec[1].start))
+    bad_ind = get_bad_columns(hdu)  # sorted array of column indices
+    if isinstance(bad_ind, np.ndarray) and np.size(bad_ind):
+        bad_ind -= datasec[1].start  # account for offset
+        good_ind = np.setdiff1d(good_ind, bad_ind)
+
+    logging.debug("%d cols had usable signal in eper_parallel", np.size(good_ind))
+    if np.size(good_ind) < 0.5 * (datasec[1].stop - datasec[1].start):
+        logging.debug("not enough good columns to determine p-cte")
+        return None
+
+    # signal estimate 1-d array (use last 5% of rows)
     sig_est_row = np.median(
         hdu.data[datasec[0].stop - srows : datasec[0].stop, datasec[1]], axis=0
     )
@@ -597,66 +682,30 @@ def eper_parallel(hdu):
     #  get column indices to use in determining p-cti
     if sig_est0 > int(1 << 14) * read_noise_est:  # assuming ~16k dynamic range
         logging.debug("using high signal case")
-        dc_est_row = (
-            np.sum(hdu.data[poscan[0], datasec[1]], axis=0) - bias_floor * prows
-        )
-        sig_est_row = sig_est_row - bias_floor
-        bad_ind = np.array(np.nonzero(dc_est_row > sig_est0 * (prows - erows)))
-    else:
-        logging.debug("using NOT high signal case")
-        # bias estimate
+        # deferred charge estimate
+        dc_est_row = np.sum(
+            hdu.data[pstart : pstop - erows, datasec[1]], axis=0
+        ) - bias_floor * (pstop - erows - pstart)
+        sig_est_row -= bias_floor
+
+    else:  # unsaturated case
         bias_est_row = np.percentile(
-            hdu.data[pstart + erows :, datasec[1]], 30.0, axis=0
+            hdu.data[pstart - 2 * erows :, datasec[1]], 30, axis=0
         )
-        # deferred charge estimate, use complement of bias_est_rows
+        # deferred charge estimate
         dc_est_row = (
             np.sum(hdu.data[pstart : pstart + erows, datasec[1]], axis=0)
             - bias_est_row * erows
         )
-        sig_est_row = sig_est_row - bias_est_row
-
-        # estimate bias level by filtering out high end of distribution
-        bias_base = np.percentile(bias_est_row, 20)
-        logging.debug("bias_base = %.2f", bias_base)
-        # bad columns are ones that are still 25% of signal after erows into overscan
-        # or if the signal is very small they have improbably high value
-        bad_ind = np.array(
-            np.nonzero(
-                np.mean(
-                    hdu.data[pstart + erows : pstart + 2 * erows, datasec[1],], axis=0,
-                )
-                > bias_base + sig_est0 / 4.0 + 50 * read_noise_est
-            )
-        )
-        logging.debug(
-            "erows * np.sum(bias_est_row - bias_floor) = %.2f",
-            erows * (np.sum(bias_est_row - bias_floor)),
-        )
-    # add +/-3 adjacent columns to the bad list
-    bad_ind = np.union1d(np.union1d(bad_ind - 1, bad_ind), bad_ind + 1)
-    bad_ind = np.union1d(np.union1d(bad_ind - 1, bad_ind), bad_ind + 1)
-    bad_ind = np.union1d(np.union1d(bad_ind - 1, bad_ind), bad_ind + 1)
-    bad_ind = np.intersect1d(np.arange(datasec[1].stop - datasec[1].start), bad_ind)
-    # good columns are the complementary set
-    good_ind = np.setdiff1d(np.arange(datasec[1].stop - datasec[1].start), bad_ind)
+        # signal estimate 1-d array (use last 5% of rows)
+        sig_est_row -= -bias_est_row
 
     dc_est = np.sum(dc_est_row[good_ind])
     sig_est = np.sum(sig_est_row[good_ind])
-    logging.debug("%d cols had usable signal in eper_parallel", np.size(good_ind))
-    if np.size(bad_ind) > 0:
-        logging.debug(
-            "possible hot cols: %s",
-            np.intersect1d(np.arange(datasec[1].stop - datasec[1].start), bad_ind)
-            + datasec[1].start,
-        )
-    logging.debug("bias_floor = %.2f", bias_floor)
-    logging.debug("read_noise_est = %.2f", read_noise_est)
     logging.debug("dc_est = %.2f  sig_est = %.2f  nrows = %d", dc_est, sig_est, nrows)
-    if np.size(good_ind) < 0.5 * (datasec[1].stop - datasec[1].start):
-        logging.debug("not enough good columns to determine p-cte")
-        return None
 
     cti_est = dc_est / sig_est / nrows
+    logging.debug("cti_est = %.6f", cti_est)
 
     if cti_est > -0.0001:
         eper = 1 - cti_est

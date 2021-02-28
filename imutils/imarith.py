@@ -79,14 +79,21 @@ def parse_args():
         "--sbias",
         nargs="?",
         const="byrow",
-        choices=["mean", "median", "byrow", "byrowsmooth"],
+        choices=[
+            "mean",
+            "median",
+            "byrow",
+            "byrowe2v",
+            "byrowsmooth",
+            "byrowsmoothe2v",
+        ],
         help="perform bias estimate removal using serial overscan",
     )
     parser.add_argument(
         "--pbias",
         nargs="?",
         const="bycol",
-        choices=["mean", "median", "bycol", "bycolfilter", "bycolsmooth", "lsste2v"],
+        choices=["mean", "median", "bycol", "bycolfilter", "bycolsmooth"],
         help="perform bias estimate removal using par overscan",
     )
     parser.add_argument(
