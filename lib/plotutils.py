@@ -7,6 +7,7 @@ import logging
 import math
 from astropy import stats
 from astropy.io import fits
+from astropy.wcs import WCS
 import numpy as np
 import matplotlib as mpl
 import matplotlib.pyplot as plt
@@ -121,6 +122,7 @@ def plot_hdus(optdict: dict, hduids: list, hdulist: fits.HDUList, pax: plt.axes)
         steps     default|steps-mid
         offset    mean|median|delta
         series    boolean
+        wcs       str
     hduids: List of hdu ids to work on
     hdulist: A fits HDUList object containing the hdu's
     pax: A matplotlib.axes.Axes instance to contain the line plots
@@ -140,11 +142,18 @@ def plot_hdus(optdict: dict, hduids: list, hdulist: fits.HDUList, pax: plt.axes)
             logging.debug("IndexError: %s", ierr)
             logging.debug("using name=%s", hduid)
             name = "{}".format(hduid)
+
         if not optdict["sbias"] and not optdict["pbias"]:
             pass
         else:
             iu.subtract_bias(optdict["sbias"], optdict["pbias"], hdu)
+
         (datasec, soscan, poscan) = iu.get_data_oscan_slices(hdu)
+        wcs = None
+        if optdict["wcs"]:
+            wcs = WCS(hdu.header, key=optdict["wcs"][0])
+            # logging.debug("%s", wcs.printwcs())
+
         slices = []  # define regions to plot
         for reg in optdict["row"] or optdict["col"]:
             logging.debug("processing %s", reg)
@@ -156,18 +165,21 @@ def plot_hdus(optdict: dict, hduids: list, hdulist: fits.HDUList, pax: plt.axes)
                 slice_spec = poscan
             else:
                 slice_spec = iu.parse_region(reg)
-            if slice_spec is not (None, None):
+            if slice_spec != (None, None):
                 slices.append(slice_spec)
             else:
                 logging.error("skipping region %s", reg)
         for slice_spec in slices:
-            logging.debug("calling line_plot() %s[%s]", name, reg)
+            logging.debug(
+                "calling line_plot() %s[%s]", name, optdict["row"] or optdict["col"]
+            )
             line_plot(
                 slice_spec,
                 hdu.data,
                 optdict["ltype"],
                 optdict["steps"],
                 optdict["offset"],
+                wcs,
                 map_axis,
                 name,
                 pax,
@@ -180,6 +192,7 @@ def line_plot(
     map_type: str,
     steps: str,
     plot_offset: str,
+    wcs: WCS,
     map_axis: int,
     hduname: str,
     pax: plt.axes,
@@ -232,17 +245,36 @@ def line_plot(
             logging.error("invalid offset or programmer error")
             exit(1)
 
-    #  plot the line: N.B. arrays are 0 indexed, fits is 1 indexed
+    #  plot the line: np.arrays are 0 indexed, fits is 1 indexed
     xa = np.arange(len(pix[0, :]))
     x = np.arange(xa[slice_spec[1]][0] + 1, xa[slice_spec[1]][-1] + 1 + 1)
     ya = np.arange(len(pix[:, 0]))
     y = np.arange(ya[slice_spec[0]][0] + 1, ya[slice_spec[0]][-1] + 1 + 1)
+    logging.debug("xmin=%.2f  xmax=%.2f", x[0], x[-1])
+    logging.debug("ymin=%.2f  ymax=%.2f", y[0], y[-1])
+
     if map_axis == 0:
         s = x
+        if wcs:  # can only handle offsets, inversions and rotations mult of 90
+            t = np.full(np.shape(s), 0)
+            (s, t) = wcs.wcs_pix2world(s, t, 0)
+            logging.debug("s[0]=%.2f t[0]=%.2f", s[0], t[0])
+            logging.debug("s[-1]=%.2f t[-1]=%.2f", s[-1], t[-1])
+            if s[0] == s[-1]:
+                s = t
     else:  # map_axis == 1:
         s = y
+        if wcs:
+            t = np.full(np.shape(s), 0)
+            (t, s) = wcs.wcs_pix2world(t, s, 0)
+            logging.debug("s[0]=%.2f t[0]=%.2f", s[0], t[0])
+            logging.debug("s[-1]=%.2f t[-1]=%.2f", s[-1], t[-1])
+            if s[0] == s[-1]:
+                s = t
+
     if map_type == "series":
         s = np.arange(0, len(line1))
+
     slabel = "{}:[{}:{},{}:{}]".format(hduname, y[0], y[-1], x[0], x[-1])
     pax.plot(s, line1, drawstyle="{}".format(steps), label=slabel)
     pax.xaxis.set_tick_params(labelsize="x-small")
