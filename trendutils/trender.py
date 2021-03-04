@@ -1166,7 +1166,6 @@ def main():
             fig.set_tight_layout({"h_pad": 0.02, "w_pad": 1.0, "rect": [0, 0, 1, 1]})
 
         if optlist.saveplot:
-            # filename = re.sub(r"(.*).pdf$", r"\1", optlist.saveplot)
             fig.savefig(f"{optlist.saveplot}", dpi=600)
         plt.show()
 

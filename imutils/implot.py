@@ -178,6 +178,19 @@ def parse_args():
     )
     pgroup.set_defaults(placement="heuristic")
     # fluff
+    parser.add_argument("--saveplot", metavar="filename.<pdf|png|..>", help="save as")
+    parser.add_argument(
+        "--logy", action="store_true", help="log y-axis ",
+    )
+    parser.add_argument(
+        "--xlimits", nargs=2, type=float, required=False, help="left right",
+    )
+    parser.add_argument(
+        "--ylimits", nargs=2, type=float, required=False, help="lower upper",
+    )
+    parser.add_argument(
+        "--wcs", nargs=1, metavar="wcs-x", required=False, help="use wcs x transform",
+    )
     parser.add_argument(
         "--layout", default="landscape", help='"landscape"|"portrait"|"nxm"'
     )
@@ -219,6 +232,10 @@ def main():
     # update/override some critical parameters
     plt.style.use(optlist.style)
     pu.update_rcparams()
+    # uncomment to use latex
+    #  plt.rcParams["text.usetex"] = True
+    #  plt.rcParams["font.size"] = 12
+    #  plt.rc("text.latex", preamble=r"\usepackage{underscore}")
 
     fig, axes = pu.get_fig_and_axis(
         len(optlist.fitsfile),
@@ -300,6 +317,19 @@ def main():
             if optlist.style == "ggplot":
                 ax.plot([], [])  # skip the first color
 
+        if optlist.xlimits:
+            # for ax in np.ravel(axes):
+            xbot, xtop = ax.set_xlim(optlist.xlimits[0], optlist.xlimits[1])
+            logging.debug("xbot= %.3g xtop= %.3g", xbot, xtop)
+        if optlist.ylimits:
+            # for ax in np.ravel(axes):
+            ybot, ytop = ax.set_ylim(optlist.ylimits[0], optlist.ylimits[1])
+            logging.debug("ybot= %.3g ytop= %.3g", ybot, ytop)
+
+        if optlist.logy:
+            logging.debug("set_yscale(symlog)")
+            ax.set_yscale("symlog")
+
         # y label depends on offset type
         if not optlist.offset:
             ax.set_ylabel("signal", size="x-small")
@@ -359,6 +389,9 @@ def main():
             ax.set_frame_on(False)
             ax.get_xaxis().set_visible(False)
             ax.get_yaxis().set_visible(False)
+
+    if optlist.saveplot:
+        fig.savefig(f"{optlist.saveplot}", dpi=600)
 
     plt.show()
 

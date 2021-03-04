@@ -454,9 +454,9 @@ def eper_serial(hdu):
     """
     datasec, soscan, poscan = get_data_oscan_slices(hdu)
     ecols = 3  # number of columns used for eper signal
-    pcnt = 30.0  # percentile for signal est
+    pcnt = 20.0  # percentile for signal est
     ncols = datasec[1].stop - datasec[1].start
-    scols = int(0.20 * ncols)
+    scols = int(0.10 * ncols)
 
     # signal estimate 1-d array (30% is ~sky)
     sig_est_col = np.percentile(
