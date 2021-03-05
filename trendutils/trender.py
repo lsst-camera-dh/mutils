@@ -263,7 +263,7 @@ def parse_args():
     return parser.parse_args()
 
 
-def main():
+def trender():
     """main logic"""
     # get command args and options
     optlist = parse_args()
@@ -1174,4 +1174,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    trender()

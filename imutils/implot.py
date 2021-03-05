@@ -189,6 +189,15 @@ def parse_args():
         "--ylimits", nargs=2, type=float, required=False, help="lower upper",
     )
     parser.add_argument(
+        "--smooth",
+        nargs="?",
+        type=int,
+        const=1,
+        metavar="ksize",
+        required=False,
+        help="smooth lines w/Gaussian1d kernel of size [1]",
+    )
+    parser.add_argument(
         "--wcs", nargs=1, metavar="wcs-x", required=False, help="use wcs x transform",
     )
     parser.add_argument(

@@ -11,6 +11,7 @@ from astropy.wcs import WCS
 import numpy as np
 import matplotlib as mpl
 import matplotlib.pyplot as plt
+from astropy.convolution import convolve, Gaussian1DKernel
 
 # local imports
 import imutils as iu
@@ -123,6 +124,7 @@ def plot_hdus(optdict: dict, hduids: list, hdulist: fits.HDUList, pax: plt.axes)
         offset    mean|median|delta
         series    boolean
         wcs       str
+        smooth    int
     hduids: List of hdu ids to work on
     hdulist: A fits HDUList object containing the hdu's
     pax: A matplotlib.axes.Axes instance to contain the line plots
@@ -179,6 +181,7 @@ def plot_hdus(optdict: dict, hduids: list, hdulist: fits.HDUList, pax: plt.axes)
                 optdict["ltype"],
                 optdict["steps"],
                 optdict["offset"],
+                optdict["smooth"],
                 wcs,
                 map_axis,
                 name,
@@ -192,6 +195,7 @@ def line_plot(
     map_type: str,
     steps: str,
     plot_offset: str,
+    smooth: int,
     wcs: WCS,
     map_axis: int,
     hduname: str,
@@ -274,6 +278,10 @@ def line_plot(
 
     if map_type == "series":
         s = np.arange(0, len(line1))
+
+    if smooth:  # smooth the line
+        kernel = Gaussian1DKernel(smooth)
+        line1 = convolve(line1, kernel, boundary="extend")
 
     slabel = "{}:[{}:{},{}:{}]".format(hduname, y[0], y[-1], x[0], x[-1])
     pax.plot(s, line1, drawstyle="{}".format(steps), label=slabel)

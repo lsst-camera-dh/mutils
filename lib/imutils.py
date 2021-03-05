@@ -372,7 +372,7 @@ def subtract_bias(stype: str, ptype: str, hdu: fits.ImageHDU):
     max_rn = 7.0
     rn_est = min(np.std(hdu.data[poscan[0], soscan[1]]), max_rn)
 
-    # First pass uses serial overscan region
+    # serial overscan first pass
     if stype:
         if stype in ("byrow", "byrowsmooth", "byrowe2v", "byrowsmoothe2v"):
             so_med = np.percentile(hdu.data[soscan], 50, axis=1)
@@ -398,26 +398,7 @@ def subtract_bias(stype: str, ptype: str, hdu: fits.ImageHDU):
             logging.error("stype: %s not valid", stype)
             sys.exit(1)
 
-    # second pass to take out special bias effect on selected e2v CCDs
-    if stype and stype in ("byrowe2v", "byrowsmoothe2v"):
-        # subtract an exp decay with amplitude from prescan along each row
-        a0 = np.mean(hdu.data[:, 1 : datasec[1].start], axis=1)
-        # smooth a?
-        logging.debug("smoothing serial overscan with Gaussian1DKernel")
-        kernel = Gaussian1DKernel(1)
-        a0 = convolve(a0, kernel, boundary="extend")
-        naxis1 = np.shape(hdu.data)[1]
-        i0 = (-3.0 / naxis1) * np.arange(naxis1)  # exp decay row vector
-        e0 = np.exp(i0)
-        # subtract exp decay function along each row
-        for i in np.arange(np.size(hdu.data[:, 0])):
-            if abs(a0[i]) > 50 * rn_est:  # limit this to sensible values
-                a0[i] = 0.0
-            hdu.data[i, :] -= a0[i] * e0
-        logging.debug("third_pass_median = %.2f", np.median(a0) * np.median(e0))
-        logging.debug("a0[0:20] = %s", a0[0:20])
-
-    # final pass uses parallel overscan
+    # parallel overscan pass
     if ptype:
         if ptype in ("bycol", "bycolfilter", "bycolsmooth"):
             if ptype == "bycol":
@@ -445,6 +426,27 @@ def subtract_bias(stype: str, ptype: str, hdu: fits.ImageHDU):
         else:
             logging.error("ptype: %s not valid", ptype)
             sys.exit(1)
+
+    # second serial pass to take out special bias effect on selected e2v CCDs
+    if stype and stype in ("byrowe2v", "byrowsmoothe2v"):
+        # subtract an exp decay with amplitude from prescan along each row
+        a0 = np.mean(hdu.data[:, 1 : datasec[1].start], axis=1)
+        b0 = np.median(hdu.data[soscan][:, 5:], axis=1)
+        # smooth a, sort of double smoothed in smoothe2v case but...
+        logging.debug("smoothing serial overscan with Gaussian1DKernel")
+        kernel = Gaussian1DKernel(1.0)
+        a0 = convolve(a0, kernel, boundary="extend")
+        b0 = convolve(b0, kernel, boundary="extend")
+        a0 = a0 - b0
+        naxis1 = np.shape(hdu.data)[1]
+        i0 = (-3.0 / naxis1) * np.arange(naxis1)  # exp decay row vector
+        e0 = np.exp(i0)
+        for i in np.arange(np.size(hdu.data[:, 0])):
+            if abs(a0[i]) > 50 * rn_est:  # limit this to sensible values
+                a0[i] = 0.0
+            hdu.data[i, :] -= a0[i] * e0 + b0[i]
+        logging.debug("a0[0:20] = %s", np.array2string(a0[0:20]))
+        logging.debug("b0[0:20] = %s", np.array2string(b0[0:20]))
 
 
 def eper_serial(hdu):
@@ -491,20 +493,21 @@ def get_bad_columns(hdu):
     based on the parallel overscan.
     An effort is made to deal with saturation until it gets too high.
     """
+    # define basic regions
+    (datasec, soscan, poscan) = get_data_oscan_slices(hdu)
+    pstart = poscan[0].start
+    pstop = poscan[0].stop
+
     # parameters
     max_rn = 7.0  # ceiling for read-noise estimate
-    erows = 8  # number rows skipped (eper region)
     window_size = 7  # window for forming baseline estimate
     sat_col_thresh = 80  # thresh for saturated cols (units are read-noise)
     base_delta_thresh = 8  # thresh for detecting hot cols in shoulder regions
     nearest_nbr_cnt = 2  # number of nearest neighbors to add to columns
     seg_merge_dist = 8  # threshold for merging groups of hot columns
     pcnt = 20  # percentile for base_row used in comparison
-
-    (datasec, soscan, poscan) = get_data_oscan_slices(hdu)
-    pstart = poscan[0].start
-    pstop = poscan[0].stop
     erows = int((pstop - pstart) / 6.0)
+
     rn_est = min(np.std(hdu.data[poscan[0], soscan[1]]), max_rn)
     bias_floor = np.percentile(hdu.data[poscan[0], soscan[1]], 30)
     sat_col_thresh = sat_col_thresh * rn_est  # thresh for major sat cols
