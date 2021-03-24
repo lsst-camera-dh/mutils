@@ -42,7 +42,13 @@ def update_rcparams():
 
 
 def get_fig_and_axis(
-    nax, layout, overlay, sharex=False, sharey=False, xdpi=None, fsize=None
+    nax,
+    layout="landscape",
+    overlay=False,
+    sharex=False,
+    sharey=False,
+    xdpi=None,
+    fsize=None,
 ):
     """
     Create the figure and subplot axes based on number of axes requested,
@@ -360,3 +366,5 @@ def mk_legend(placement: str, nrows: int, handles: list, labels: list, pax: plt.
             leg.set_draggable(True)
         except AttributeError:
             pass
+
+    return leg

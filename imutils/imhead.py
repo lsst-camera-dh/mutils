@@ -44,7 +44,7 @@ def parse_args():
     # return opts
 
 
-def main():
+def imhead():
     """print out headers"""
     optlist = parse_args()
     mu.init_logging(optlist.debug)
@@ -71,4 +71,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    imhead()

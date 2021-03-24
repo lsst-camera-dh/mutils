@@ -102,7 +102,7 @@ def parse_args():
     return parser.parse_args()
 
 
-def main():
+def imarith():
     """main logic:"""
     optlist = parse_args()
     mu.init_logging(optlist.debug)
@@ -277,4 +277,4 @@ def get_operand_type(operand):
 
 
 if __name__ == "__main__":
-    main()
+    imarith()

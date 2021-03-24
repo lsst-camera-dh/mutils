@@ -86,7 +86,7 @@ def parse_args():
     return parser.parse_args()
 
 
-def main():
+def imfft():
     """main logic:"""
     optlist = parse_args()
     mu.init_logging(optlist.debug)
@@ -211,4 +211,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    imfft()

@@ -250,6 +250,9 @@ def parse_args():
     parser.add_argument(
         "--debug", action="store_true", help="Print additional debugging info"
     )
+    parser.add_argument(
+        "--noshow", action="store_true", help="make but don't show the plot"
+    )
     parser.add_argument("--itl", action="store_true", help="limit to ITL devices")
     parser.add_argument("--e2v", action="store_true", help="limit to E2V devices")
     parser.add_argument("--science", action="store_true", help="limit to science rafts")
@@ -1167,7 +1170,11 @@ def trender():
 
         if optlist.saveplot:
             fig.savefig(f"{optlist.saveplot}", dpi=600)
-        plt.show()
+
+        if optlist.noshow:
+            pass
+        else:
+            plt.show()
 
     # end of main()
     sys.exit(0)

@@ -12,7 +12,10 @@ from astropy import wcs
 from astropy.convolution import convolve, Gaussian1DKernel, interpolate_replace_nans
 import numpy as np
 import math
-from scipy.ndimage import minimum_filter1d
+from scipy.ndimage import minimum_filter1d, median_filter, percentile_filter
+from scipy import sparse
+from scipy.sparse.linalg import spsolve
+from scipy.interpolate import UnivariateSpline
 
 
 def create_output_hdulist(hdulisti: fits.HDUList, argv: list) -> fits.HDUList:
@@ -294,7 +297,7 @@ def get_data_oscan_slices(hdu: fits.FitsHDU) -> tuple:
     except KeyError as ke:
         logging.debug("KeyError: %s required", ke)
         return (None, None, None)
-    logging.debug("DATASEC=%s", dstr)
+    logging.debug("EXTNAME=%s DATASEC=%s", hdr.get("EXTNAME"), dstr)
     try:
         n1 = hdr["NAXIS1"]
     except KeyError as ke:
@@ -354,7 +357,7 @@ def str_to_slices(sliceStr: str) -> tuple:
     return tuple(slices)
 
 
-def subtract_bias(stype: str, ptype: str, hdu: fits.ImageHDU):
+def subtract_bias(stype: str, ptype: str, hdu: fits.ImageHDU, bad_segs: list = None):
     """
     Subtract a bias estimate (using overscans) from an hdu.
     Operates in-place on the Image.HDU parameter
@@ -379,8 +382,9 @@ def subtract_bias(stype: str, ptype: str, hdu: fits.ImageHDU):
             # clean up any crazy rows (eg overflow in serial from hot column)
             so_med_med = np.median(so_med)
             so_med_bad_ind = np.nonzero(np.abs(so_med - so_med_med) > 100 * rn_est)
-            logging.debug("anomalous soscan rows: %s", so_med_bad_ind)
-            so_med[so_med_bad_ind] = so_med_med
+            logging.debug("anomalous soscan rows: %s", np.size(so_med_bad_ind))
+            if np.size(so_med_bad_ind):
+                so_med[so_med_bad_ind] = so_med_med
             if stype in ("byrowsmooth", "byrowsmoothe2v"):
                 logging.debug("smoothing serial overscan with Gaussian1DKernel")
                 kernel = Gaussian1DKernel(1)
@@ -404,9 +408,12 @@ def subtract_bias(stype: str, ptype: str, hdu: fits.ImageHDU):
             if ptype == "bycol":
                 bias_row = np.percentile(hdu.data[poscan[0], :], pcnt, axis=0)
             elif ptype in ("bycolfilter", "bycolsmooth"):
-                bias_row = get_bias_filtered_est_row(hdu)
+                bias_row = get_bias_filtered_est_row(hdu, bad_segs)
                 if bias_row is None:
-                    logging.warning("could not perform parallel bias subtraction")
+                    logging.warning(
+                        "%s: saturated: could not perform parallel bias subtraction",
+                        hdu.header.get("EXTNAME"),
+                    )
                     return
                 if ptype == "bycolsmooth":
                     logging.debug("smoothing par overscan with Gaussian1DKernel")
@@ -456,7 +463,7 @@ def eper_serial(hdu):
     """
     datasec, soscan, poscan = get_data_oscan_slices(hdu)
     ecols = 3  # number of columns used for eper signal
-    pcnt = 20.0  # percentile for signal est
+    pcnt = 30.0  # percentile for signal est
     ncols = datasec[1].stop - datasec[1].start
     scols = int(0.10 * ncols)
 
@@ -487,6 +494,424 @@ def eper_serial(hdu):
         return None
 
 
+def get_union_of_bad_column_segs(hdulist: fits.HDUList):
+    """
+    """
+    shape = None
+    segs = []
+    for hdu in hdulist:
+        # determine type of HDU
+        if isinstance(hdu, fits.PrimaryHDU):  # check for data
+            if hdu.header.get("NAXIS") != 2:
+                continue
+        elif isinstance(hdu, (fits.ImageHDU, fits.CompImageHDU)):
+            if np.size(hdu.data) == 0:
+                logging.error("fits.*ImageHDU type must have np.size(data) != 0")
+                continue
+        else:
+            continue
+        # get pixel data info for hdu if exists
+        if not shape:
+            shape = np.shape(hdu.data)
+        if shape != np.shape(hdu.data):
+            logging.error(
+                "fits.*ImageHDU all must have same shape: %s != %s",
+                np.shape(hdu.data),
+                shape,
+            )
+            return None
+        new_segs = get_bad_column_segs(hdu)
+        if new_segs is None:
+            logging.warning(
+                "%s: too saturated, could not determine bad columns",
+                hdu.header.get("EXTNAME"),
+            )
+        elif len(new_segs):
+            logging.debug("before extending segs=%s", segs)
+            segs.extend(new_segs)
+            logging.debug("after extending segs=%s", segs)
+        else:
+            logging.debug("no bad segments found in %s", hdu.header.get("EXTNAME"))
+
+    # merge if within merge_distance
+    segs.sort()
+    seg_merge_dist = 8
+    i = 1
+    while i < len(segs):
+        if segs[i - 1][1] + seg_merge_dist > segs[i][0]:
+            segs[i][0] = segs[i - 1][0]  # expand lower edge of upper segment
+            if segs[i][1] < segs[i - 1][1]:
+                segs[i][1] = segs[i - 1][1]
+            del segs[i - 1]  # delete the lower segment
+        else:
+            i += 1  # move on
+    logging.debug(f"after merging segs={segs}")
+    segs.sort()
+    return segs
+
+
+def get_disjoint_segments(indices: np.array) -> list:
+    """
+    input indices np.array is expected to be sorted
+    """
+    # get disjoint consecutive segments as [seg0, ...] where segj=[startcol, endcol]
+    # logging.debug("given indices=%s", indices)
+    segs = []
+    if np.size(indices):
+        seg_start = seg_stop = idx_last = indices[0]
+        for idx in indices[1:]:  # start on second element
+            if idx == idx_last + 1:  # advance the segment
+                seg_stop = idx_last = idx
+            else:  # append and start a new seg
+                segs.append([seg_start, seg_stop])
+                seg_start = seg_stop = idx_last = idx
+        segs.append([seg_start, seg_stop])
+    # logging.debug("found segs=%s", segs)
+    return segs
+
+
+def merge_segments(segs: list, merge_distance: int = 8) -> list:
+    """ merge segments [start, stop], if within merge_distance
+    """
+    i = 1
+    while i < len(segs):
+        if segs[i - 1][1] + merge_distance > segs[i][0]:
+            segs[i][0] = segs[i - 1][0]  # expand lower edge of upper segment
+            if segs[i][1] < segs[i - 1][1]:
+                segs[i][1] = segs[i - 1][1]
+            del segs[i - 1]  # delete the lower segment
+        else:
+            i += 1  # move on
+    logging.debug("after merge: segs=%s", segs)
+    return segs
+
+
+def get_bad_column_segs(hdu):
+    """
+    Given hdu, produce an list of ordered pairs [a,b] where columns
+    a through b inclusive are "bad" as in hot/saturated
+    The search is based on the parallel overscan.
+    An effort is made to deal with saturation until it gets too high.
+    """
+    logging.debug("get_bad_column_segs(): entry")
+    # define basic regions
+    (datasec, soscan, poscan) = get_data_oscan_slices(hdu)
+    pstart = poscan[0].start
+    pstop = poscan[0].stop
+
+    # parameters
+    max_rn = 7.0  # ceiling for read-noise estimate
+    window_size = 11  # window for forming baseline estimate
+    sat_col_thresh = 80  # thresh for saturated cols (units are read-noise)
+    base_delta_thresh = 2.0  # units of rn for return to baseline
+    base_delta_cnt = 2
+    pcnt = 20  # percentile for base_row used in comparison
+    erows = int((pstop - pstart) / 6.0)  # skipped before baseline calc
+    seg_merge_dist = 8
+
+    rn_est = min(np.std(hdu.data[poscan[0], soscan[1]]), max_rn)
+    bias_floor = np.percentile(hdu.data[poscan[0], soscan[1]], 30)
+    sat_col_thresh = sat_col_thresh * rn_est  # thresh for major sat cols
+    base_delta_thresh = base_delta_thresh * rn_est  # thresh for shoulders
+    #
+    logging.debug(f"bias_floor={bias_floor}")
+    logging.debug(f"rn_est={rn_est:.2f}")
+    logging.debug(f"sat_col_thresh={sat_col_thresh:.2f}")
+    logging.debug(f"base_delta_thresh={base_delta_thresh:.2f}")
+
+    offset = erows
+    retries = int((pstop - pstart) / offset) - 1  # shift and try again limit
+    while retries > 0:
+        # skips first few rows to avoid cti deferred signal -- matters at high sig
+        test_row = np.percentile(
+            hdu.data[pstart + offset :, datasec[1]], (100.0 - pcnt), axis=0,
+        )
+        # tail end of parallel overscan to use for base level
+        base_row = np.percentile(hdu.data[pstart + offset :, datasec[1]], pcnt, axis=0)
+        base_row = minimum_filter1d(base_row, window_size, mode="nearest")
+
+        # get the high values in cores of hot/sat column groups
+        bad_ind = np.array(np.nonzero(test_row > (bias_floor + sat_col_thresh))[0])
+        if np.size(bad_ind) == 0:
+            return []
+
+        # find segments
+        segs = get_disjoint_segments(bad_ind)
+
+        # expand segments until baseline is reached
+        for seg in segs:
+            logging.debug("initial segment=[%s, %s]", seg[0], seg[1])
+            # work the low side
+            thresh_cnt = 0
+            while seg[0] > 0 and thresh_cnt < base_delta_cnt:
+                if (test_row[seg[0] - 1] - base_row[seg[0] - 1]) < base_delta_thresh:
+                    thresh_cnt += 1
+                seg[0] -= 1
+            # work the high side
+            thresh_cnt = 0
+            while (
+                seg[1] + 1 < datasec[1].stop - datasec[1].start
+                and thresh_cnt < base_delta_cnt
+            ):
+                if (test_row[seg[1] + 1] - base_row[seg[1] + 1]) < base_delta_thresh:
+                    thresh_cnt += 1
+                seg[1] += 1
+            logging.debug("expanded segment=[%s, %s]", seg[0], seg[1])
+
+        # merge segments that are close (8) to each other
+        segs = merge_segments(segs, 8)
+        segsum = sum([seg[1] - seg[0] for seg in segs])
+        logging.debug("segsum=%d", segsum)
+        if sum([seg[1] - seg[0] for seg in segs]) > int(np.size(base_row) / 2):
+            # this is likely saturation of whole hdu and not hot columns
+            offset += erows
+            retries -= 1
+            if retries > 0:
+                logging.debug("may be saturated: retrying with offset=%d", offset)
+            else:
+                return None
+        else:
+            break
+
+    # trim the ends
+    # bad_ind = np.intersect1d(np.arange(datasec[1].stop - datasec[1].start), bad_ind)
+    # logging.debug("trimmed bad_ind=%s", bad_ind + datasec[1].start)
+
+    # segs = indices_to_segs(bad_ind)
+
+    origin = datasec[1].start
+    for seg in segs:
+        seg[0] += origin
+        seg[1] += origin
+
+    logging.debug("final segs=%s", segs)
+    logging.debug("get_bad_column_segs(): exit")
+    return segs
+
+
+def indices_to_segs(ind_arr: np.array):
+    """
+    """
+    logging.debug("indices_to_segs() entry")
+    seg_merge_dist = 8
+    # get disjoint consecutive segments as seg=[startcol, endcol]
+    logging.debug("ind_arr=%s", ind_arr)
+    segs = []
+    arr = np.sort(ind_arr)
+    seg_start = seg_stop = idx_last = arr[0]
+    for idx in arr[1:]:  # start on second element
+        if idx == idx_last + 1:  # advance the segment
+            seg_stop = idx_last = idx
+        else:  # append and start a new seg
+            segs.append([seg_start, seg_stop])
+            seg_start = seg_stop = idx_last = idx
+    segs.append([seg_start, seg_stop])
+    logging.debug("initial segs=%s", segs)
+
+    # merge if within merge_distance
+    i = 1
+    while i < len(segs):
+        if segs[i - 1][1] + seg_merge_dist > segs[i][0]:
+            segs[i][0] = segs[i - 1][0]  # expand lower edge of upper segment
+            if segs[i][1] < segs[i - 1][1]:
+                segs[i][1] = segs[i - 1][1]
+            del segs[i - 1]  # delete the lower segment
+        else:
+            i += 1  # move on
+    segs.sort()
+    logging.debug("after merge: segs=%s", segs)
+    logging.debug("indices_to_segs() exit")
+    return segs
+
+
+def get_bad_column_segs_old(hdu):
+    """
+    Given hdu, produce an list of ordered pairs [a,b] where columns
+    a through b inclusive are "bad"
+    The search is based on the parallel overscan.
+    An effort is made to deal with saturation until it gets too high.
+    """
+    # define basic regions
+    (datasec, soscan, poscan) = get_data_oscan_slices(hdu)
+    pstart = poscan[0].start
+    pstop = poscan[0].stop
+
+    # parameters
+    max_rn = 7.0  # ceiling for read-noise estimate
+    window_size = 7  # window for forming baseline estimate
+    sat_col_thresh = 80  # thresh for saturated cols (units are read-noise)
+    base_delta_thresh = 5  # thresh for detecting hot cols in shoulder regions
+    nearest_nbr_cnt = 3  # number of nearest neighbors to add to columns
+    seg_merge_dist = 8  # threshold for merging groups of hot columns
+    pcnt = 20  # percentile for base_row used in comparison
+    erows = int((pstop - pstart) / 6.0)
+
+    rn_est = min(np.std(hdu.data[poscan[0], soscan[1]]), max_rn)
+    bias_floor = np.percentile(hdu.data[poscan[0], soscan[1]], 30)
+    sat_col_thresh = sat_col_thresh * rn_est  # thresh for major sat cols
+    base_delta_thresh = base_delta_thresh * rn_est  # thresh for shoulders
+    #
+    logging.debug(f"bias_floor={bias_floor}")
+    logging.debug(f"rn_est={rn_est:.2f}")
+    logging.debug(f"sat_col_thresh={sat_col_thresh:.2f}")
+    logging.debug(f"base_delta_thresh={base_delta_thresh:.2f}")
+
+    offset = erows
+    retries = int((pstop - pstart) / offset) - 1  # shift and try again limit
+    while retries > 0:
+        # skips first few rows to avoid cti deferred signal -- matters at high sig
+        test_row = np.percentile(
+            hdu.data[pstart + offset :, datasec[1]], (100.0 - pcnt), axis=0,
+        )
+        # tail end of parallel overscan to use for base level
+        base_row = np.percentile(hdu.data[pstart + offset :, datasec[1]], pcnt, axis=0)
+        base_row = minimum_filter1d(base_row, window_size, mode="nearest")
+
+        # get the high values in cores of hot/sat column groups
+        bad_ind0 = np.array(np.nonzero(test_row > (bias_floor + sat_col_thresh)))
+        # get the shoulders and small sat columns
+        bad_ind1 = np.array(np.nonzero(test_row > (base_row + base_delta_thresh)))
+        # bad_ind = np.union1d(bad_ind0, bad_ind1)
+        bad_ind = bad_ind0
+        logging.debug(f"np.size(bad_ind0)={np.size(bad_ind0)}")
+        logging.debug(f"np.size(bad_ind1)={np.size(bad_ind1)}")
+        logging.debug(f"np.size(bad_ind)={np.size(bad_ind)}")
+        if np.size(bad_ind) == 0:
+            return None
+        elif np.size(bad_ind1) > int(np.size(base_row) / 2):
+            # this is saturation of whole hdu and not hot columns
+            if np.size(bad_ind0) == 0:
+                return None
+            elif np.size(bad_ind0) < int(np.size(base_row) / 2):
+                bad_ind = bad_ind0  # ignore bad_ind1
+                break
+            else:  # skip more rows and try again
+                offset += erows
+                retries -= 1
+                if retries > 0:
+                    logging.debug(f"retrying with offset={offset}")
+        else:
+            break
+
+    # puff up the bad indices by including {nearest_nbr_cnt} neighbors
+    for i in range(0, nearest_nbr_cnt):
+        bad_ind = np.union1d(np.union1d(bad_ind - 1, bad_ind), bad_ind + 1)
+    logging.debug(f"bad_ind={bad_ind + datasec[1].start}")
+
+    # trim the ends
+    bad_ind = np.intersect1d(np.arange(datasec[1].stop - datasec[1].start), bad_ind)
+    logging.debug(f"bad_ind={bad_ind + datasec[1].start}")
+
+    # get disjoint consecutive segments as seg=[startcol, endcol]
+    segs = []
+    seg_start = seg_stop = idx_last = bad_ind[0]
+    for idx in bad_ind[1:]:  # start on second element
+        if idx == idx_last + 1:  # advance the segment
+            seg_stop = idx_last = idx
+        else:  # append and start a new seg
+            segs.append([seg_start, seg_stop])
+            seg_start = idx_last = idx
+    segs.append([seg_start, seg_stop])
+    logging.debug(f"segs={segs}")
+
+    # merge if within merge_distance
+    segs.sort()
+    i = 1
+    while i < len(segs):
+        if segs[i - 1][1] + seg_merge_dist > segs[i][0]:
+            segs[i][0] = segs[i - 1][0]  # expand lower edge of upper segment
+            if segs[i][1] < segs[i - 1][1]:
+                segs[i][1] = segs[i - 1][1]
+            del segs[i - 1]  # delete the lower segment
+        else:
+            i += 1  # move on
+    logging.debug(f"segs={segs}")
+    segs.sort()
+    origin = datasec[1].start
+    for seg in segs:
+        seg[0] += origin
+        seg[1] += origin
+
+    return segs
+
+
+def get_bias_filtered_est_row(hdu, bad_segs=None):
+    """
+    Given hdu, produce a suitable parallel bias estimate for bycol subtraction
+    The filtered row attempts to interpolate across regions with bad/hot columns
+    """
+    (datasec, soscan, poscan) = get_data_oscan_slices(hdu)
+    pcnt = 30.0  # targets p-oscan matching double overscan in final rows
+    offset = int((poscan[0].stop - poscan[0].start) / 2.0)
+    bias_est_row = np.percentile(hdu.data[poscan[0].start + offset :, :], pcnt, axis=0)
+
+    if not bad_segs:
+        logging.debug("get_bias_filtered_est_row->get_bad_columns_segs()")
+        bad_segs = get_bad_column_segs(hdu)  # sorted list of disjoint segments
+
+    logging.debug("bad_segs=%s", bad_segs)
+    if bad_segs is None:
+        return None
+    max_length = 0
+    tot_length = 0
+    if len(bad_segs):
+        for seg in bad_segs:
+            length = seg[1] - seg[0] + 1
+            tot_length += length
+            if length > max_length:
+                max_length = length
+        if tot_length > 0.5 * np.size(bias_est_row[datasec[1]]):
+            return None
+
+        for seg in bad_segs:
+            ll = max(datasec[0].start, seg[0] - 10)
+            ul = min(datasec[0].stop, seg[1] + 11)
+            lval = np.median(bias_est_row[ll : seg[0]])
+            rval = np.median(bias_est_row[seg[1] : ul])
+            segsz = seg[1] - seg[0]
+            for x in range(seg[0], seg[1]):
+                bias_est_row[x] = (
+                    lval * (seg[1] - x) / segsz + rval * (x - seg[0]) / segsz
+                )
+
+    # match datasec bias level to double overscan near last rows
+    bias_match_level = np.percentile(hdu.data[poscan[0], soscan[1]], pcnt)
+    soscan_cols = soscan[1].stop - soscan[1].start
+    bias_est_level = np.percentile(bias_est_row[datasec[1].stop - soscan_cols :], pcnt)
+    bias_est_row -= bias_est_level - bias_match_level
+
+    return bias_est_row
+
+
+def get_bias_filtered_est_row_test(hdu, bad_segs=None):
+    """
+    Given hdu, produce a suitable parallel bias estimate for bycol subtraction
+    The filtered row attempts to interpolate across regions with bad/hot columns
+    """
+    (datasec, soscan, poscan) = get_data_oscan_slices(hdu)
+    pcnt = 30.0  # targets p-oscan matching double overscan in final rows
+    offset = int((poscan[0].stop - poscan[0].start) / 2.0)
+    bias_est_row = np.percentile(hdu.data[poscan[0].start + offset :, :], pcnt, axis=0)
+    new_est_row = baseline_als_optimized(bias_est_row, 105, 0.1, niter=10)
+    return new_est_row
+
+
+def baseline_als_optimized(y, lam, p, niter=10):
+    L = len(y)
+    D = sparse.diags([1, -2, 1], [0, -1, -2], shape=(L, L - 2))
+    D = lam * D.dot(
+        D.transpose()
+    )  # Precompute this term since it does not depend on `w`
+    w = np.ones(L)
+    W = sparse.spdiags(w, 0, L, L)
+    for i in range(niter):
+        W.setdiag(w)  # Do not create a new matrix, just update diagonal values
+        Z = W + D
+        z = spsolve(Z, w * y)
+        w = p * (y > z) + (1 - p) * (y < z)
+    return z
+
+
 def get_bad_columns(hdu):
     """
     Given hdu, produce an array containing column indices for bad/hot columns
@@ -505,7 +930,7 @@ def get_bad_columns(hdu):
     base_delta_thresh = 8  # thresh for detecting hot cols in shoulder regions
     nearest_nbr_cnt = 2  # number of nearest neighbors to add to columns
     seg_merge_dist = 8  # threshold for merging groups of hot columns
-    pcnt = 20  # percentile for base_row used in comparison
+    pcnt = 30  # percentile for base_row used in comparison
     erows = int((pstop - pstart) / 6.0)
 
     rn_est = min(np.std(hdu.data[poscan[0], soscan[1]]), max_rn)
@@ -596,13 +1021,13 @@ def get_bad_columns(hdu):
     return bad_ind + datasec[1].start
 
 
-def get_bias_filtered_est_row(hdu):
+def get_bias_filtered_est_row_old(hdu):
     """
     Given hdu, produce a suitable parallel bias estimate for bycol subtraction
     The filtered row attempts to interpolate across regions with bad/hot columns
     """
     (datasec, soscan, poscan) = get_data_oscan_slices(hdu)
-    pcnt = 20.0  # targets p-oscan matching double overscan in final rows
+    pcnt = 30.0  # targets p-oscan matching double overscan in final rows
     offset = int((poscan[0].stop - poscan[0].start) / 2.0)
     bias_est_row = np.percentile(hdu.data[poscan[0].start + offset :, :], pcnt, axis=0)
 
@@ -851,3 +1276,113 @@ def image_combine_hdu(
 
     if bimage:
         hduo.data = hduo.data - bdata
+
+
+def subtract_background(hdu, datasec, segs):
+    """
+    Used in xtalk measurement where the background should be simple
+    """
+    # convert segments list into array of indices (origin is same as hdu)
+    bad_ind = []
+    tot_len = 0
+    max_len = 0
+    if segs:
+        segs.sort()
+        for seg in segs:
+            seg_len = seg[1] - seg[0]
+            tot_len += seg_len
+            if seg_len > max_len:
+                max_len = seg_len
+            bad_ind.extend(list(range(seg[0], seg[1] + 1)))
+        bad_ind = np.array(bad_ind)
+
+    # copy hdu.data to produce a background estimate
+    bkgarr = hdu.data.copy()
+    # interpolate across bad column regions (segments)
+    if np.size(bad_ind):
+        for rowind in range(np.shape(hdu.data)[0]):
+            for seg in segs:
+                ll = max(datasec[0].start, seg[0] - 13)
+                ul = min(datasec[0].stop, seg[1] + 13)
+                lval = np.median(bkgarr[rowind, ll : seg[0]])
+                rval = np.median(bkgarr[rowind, seg[1] : ul])
+                segsz = seg[1] - seg[0]
+                for x in range(seg[0], seg[1]):
+                    bkgarr[rowind, x] = (
+                        lval * (seg[1] - x) / segsz + rval * (x - seg[0]) / segsz
+                    )
+            if rowind % 500 == 0:
+                logging.debug(
+                    "bkgarr[%d,%d:%d]=%s",
+                    rowind,
+                    seg[0] - 13,
+                    seg[1] + 13,
+                    np.array2string(
+                        bkgarr[rowind, seg[0] - 13 : seg[1] + 13],
+                        precision=2,
+                        separator=",",
+                    ),
+                )
+
+    # median filter
+    hdu.data[datasec] -= percentile_filter(
+        bkgarr[datasec], 20, size=(10, 50), mode="nearest"
+    )
+
+
+def subtract_background_for_xtalk(hdu, mask, datasec):
+    """
+    Used in xtalk measurement where the background should be simple
+    """
+    # copy hdu.data to produce a background estimate
+    bkgarr = hdu.data.copy()
+    # interpolate row by row across masked area
+    d0 = datasec[1].start
+    d1 = datasec[1].stop
+    dsize = d1 - d0
+    # str1 = np.array2string(bkgarr[700, d0:d1], precision=2, separator=",")
+    # print(f"bkgarr[700, {d0}:{d1}]={str1}")
+    # str2 = np.array2string(mask[700, d0:d1], precision=2, separator=",")
+    # print(f"mask[700, {d0}:{d1}]={str2}")
+    for rowind in range(np.shape(hdu.data)[0]):
+        row_arr = np.array(bkgarr[rowind, d0:d1])
+        wghts = np.array(mask[rowind, d0:d1])
+        if np.all(wghts):  # skip row if no masked points
+            continue
+        x = np.arange(dsize)
+        segs = get_disjoint_segments(x[wghts == 0])
+        segsum = sum([seg[1] - seg[0] for seg in segs])
+        if segsum > (dsize) / 2.0:  # can't subtract background this row
+            bkgarr[rowind, :] = np.nan
+            continue
+        for seg in segs:
+            s0 = seg[0]
+            s1 = seg[1]
+            ll = max(0, s0 - 10)
+            ul = min(s1 + 10, dsize)
+            if s0 - 10 < 0 or s1 + 10 > dsize:  # invalidate and skip segment
+                bkgarr[rowind, s0 + d0 : s1 + d0 + 1] = np.nan
+                continue
+            # logging.debug("ll = %d", ll)
+            # logging.debug("s0 = %d", s0)
+            # logging.debug("row_arr[%d : %d]=%s", ll, s0, row_arr[ll:s0])
+            lval = np.median(row_arr[ll:s0])
+            rval = np.median(row_arr[s1 + 1 : ul])
+            segsz = s1 - s0 + 1
+            for xval in range(s0, s1 + 1):
+                row_arr[xval] = lval * (s1 - xval) / segsz + rval * (xval - s0) / segsz
+
+            bkgarr[rowind, s0 + d0 : s1 + d0 + 1] = row_arr[s0 : s1 + 1]
+        nan_cnt = np.count_nonzero(np.isnan(row_arr))
+        if nan_cnt:
+            logging.debug(
+                "2: found %d nans in row %d",
+                np.count_nonzero(np.isnan(row_arr)),
+                rowind,
+            )
+            if rowind == 40:
+                logging.debug("segs=%s", segs)
+                logging.debug("segsum=%d", segsum)
+                logging.debug("%s", row_arr)
+
+    hdu.data -= bkgarr

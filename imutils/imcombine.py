@@ -128,14 +128,14 @@ def parse_args():
     return parser.parse_args()
 
 
-def main():
+def imcombine():
     """main logic:"""
     optlist = parse_args()
     mu.init_logging(optlist.debug)
     mu.init_warnings()
     verbose = optlist.verbose
 
-    # convert iraf style ROI to slice format
+    # convert to slice format
     region = None
     if optlist.region:
         region = iu.parse_region(optlist.region)
@@ -246,9 +246,9 @@ def main():
 
     # write the output file
     hdulisto.writeto(optlist.result[0], overwrite=True)
-    sys.exit(0)
     # ------------------------------------
 
 
 if __name__ == "__main__":
-    main()
+    imcombine()
+    sys.exit(0)
