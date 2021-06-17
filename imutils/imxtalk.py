@@ -418,7 +418,6 @@ def imxtalk():
                     handles, labels = ax.get_legend_handles_labels()
                     lgnd = pu.mk_legend("inside", nprows, handles, labels, ax)
                     # big hack
-                    print(f"sizes={lgnd.legendHandles[-2]._sizes}")
                     lgnd.legendHandles[-2]._sizes = [6]
                     lgnd.legendHandles[-1]._sizes = [6]
 

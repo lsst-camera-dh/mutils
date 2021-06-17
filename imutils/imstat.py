@@ -279,11 +279,11 @@ def quicklook(optlist, hduids, hdulist):
     try:
         expt = float(hdulist[0].header["EXPTIME"])
     except KeyError as ke:
-        emsg = "KeyError: {}".format(ke)
-        logging.warninging(emsg)
-        emsg = "adu/sec won't be available"
-        logging.warninging(emsg)
-        expt = 0.0
+        try:
+            expt = float(hdulist[0].header["DARKTIME"])
+        except KeyError as ke:
+            logging.warning("EXPTIME|DARKTIME non in header, adu/sec won't be available")
+            expt = 0
 
     # perform and print the given statistics quantities
     # fields are: mean, bias, signal, noise, adu/s
