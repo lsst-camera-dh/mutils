@@ -85,7 +85,12 @@ def get_fig_and_axis(
     else:
         plt.rcParams["figure.figsize"] = (9.0, 5.4)
     fig, axes = plt.subplots(
-        nprows, npcols, sharex=sharex, sharey=sharey, squeeze=False, dpi=xdpi,
+        nprows,
+        npcols,
+        sharex=sharex,
+        sharey=sharey,
+        squeeze=False,
+        dpi=xdpi,
     )
     fsize = plt.rcParams["figure.figsize"]
     logging.debug("subplots size is fsize[0]=%s x fsize[1]=%s", fsize[0], fsize[1])
@@ -123,8 +128,9 @@ def plot_hdus(optdict: dict, hduids: list, hdulist: fits.HDUList, pax: plt.axes)
         ---       -----
         col       region spec list
         row       region spec list
-        stype     mean|median|byrow|byrowsmooth
-        ptype     mean|median|bycol|bycolsmooth|lsste2v|lsstitl
+        bias      True|False for auto: overrides sbias, pbias
+        sbias     mean|median|byrow|byrowsmooth
+        pbias     mean|median|bycol|bycolsmooth|lsste2v|lsstitl
         ltype     median|mean|clipped|series
         steps     default|steps-mid
         offset    mean|median|delta
@@ -141,6 +147,17 @@ def plot_hdus(optdict: dict, hduids: list, hdulist: fits.HDUList, pax: plt.axes)
         map_axis = 1  # second axis (x) converts to scalar
     else:
         exit(1)
+
+    if optdict["bias"]:  # auto set [sp]bias, overriding existing
+        try:
+            optdict["sbias"], optdict["pbias"] = iu.auto_biastype(hdulist)
+        except KeyError as kerr:
+            logging.error(kerr)
+            sys.exit(1)
+        except ValueError as verr:
+            logging.error(verr)
+            sys.exit(1)
+
     # Process each HDU in the list "hduids"
     for hduid in hduids:
         hdu = hdulist[hduid]

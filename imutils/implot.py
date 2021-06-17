@@ -87,6 +87,12 @@ def parse_args():
         help="plot relative from mean, median or w/offset",
     )
     parser.add_argument("--overlay", action="store_true", help="all lines in one plot")
+
+    parser.add_argument(
+        "--bias",
+        action="store_true",
+        help="auto bias estimate removal by CCD type (itl, e2v)",
+    )
     parser.add_argument(
         "--sbias",
         nargs="?",
@@ -180,13 +186,23 @@ def parse_args():
     # fluff
     parser.add_argument("--saveplot", metavar="filename.<pdf|png|..>", help="save as")
     parser.add_argument(
-        "--logy", action="store_true", help="log y-axis ",
+        "--logy",
+        action="store_true",
+        help="log y-axis ",
     )
     parser.add_argument(
-        "--xlimits", nargs=2, type=float, required=False, help="left right",
+        "--xlimits",
+        nargs=2,
+        type=float,
+        required=False,
+        help="left right",
     )
     parser.add_argument(
-        "--ylimits", nargs=2, type=float, required=False, help="lower upper",
+        "--ylimits",
+        nargs=2,
+        type=float,
+        required=False,
+        help="lower upper",
     )
     parser.add_argument(
         "--smooth",
@@ -198,7 +214,11 @@ def parse_args():
         help="smooth lines w/Gaussian1d kernel of size [1]",
     )
     parser.add_argument(
-        "--wcs", nargs=1, metavar="wcs-x", required=False, help="use wcs x transform",
+        "--wcs",
+        nargs=1,
+        metavar="wcs-x",
+        required=False,
+        help="use wcs x transform",
     )
     parser.add_argument(
         "--layout", default="landscape", help='"landscape"|"portrait"|"nxm"'

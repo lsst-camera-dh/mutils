@@ -8,8 +8,7 @@ from astropy.utils.exceptions import AstropyWarning
 
 
 def init_logging(debug):
-    """ Set up debug and info level logging
-    """
+    """Set up debug and info level logging"""
     if debug:
         logging.basicConfig(format="%(levelname)s: %(message)s", level=logging.DEBUG)
     else:
@@ -20,8 +19,7 @@ def init_logging(debug):
 
 
 def init_warnings():
-    """ Block warnings from Astropy
-    """
+    """Block warnings from Astropy"""
     warnings.simplefilter("ignore", category=AstropyWarning)
 
 
@@ -177,8 +175,7 @@ def mkglob(fullpaths: list, trim=False) -> str:
 
 
 def tok_line(line: str) -> list:
-    """
-    """
+    """ """
     #
     # from https://stackoverflow.com/questions/16710076
     # regex to split a string preserving quoted fields

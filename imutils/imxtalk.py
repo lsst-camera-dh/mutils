@@ -94,7 +94,11 @@ def parse_args():
         "--plot", action="store_true", help="plot binned (src, rsp) scatter plots"
     )
     parser.add_argument(
-        "--ylimits", nargs=2, type=float, required=False, help="lower upper",
+        "--ylimits",
+        nargs=2,
+        type=float,
+        required=False,
+        help="lower upper",
     )
     parser.add_argument(
         "--predict", action="store_true", help="plot fit prediction lines"
@@ -191,11 +195,11 @@ def imxtalk():
             hdu_s = hdulist[srcid]
             # subtract the bias estimate from the source array
             if lsst_num and re.match(r"^E2V-CCD250", lsst_num):
-                stype = "byrowe2v"
+                sbias = "byrowe2v"
             else:
-                stype = "byrow"
-            ptype = "bycolfilter"
-            iu.subtract_bias(stype, ptype, hdu_s, bad_segs)
+                sbias = "byrow"
+            pbias = "bycolfilter"
+            iu.subtract_bias(sbias, pbias, hdu_s, bad_segs)
             logging.info("hdu_s = %s", hdu_s.header["EXTNAME"])
             (datasec_s, soscan_s, poscan_s) = iu.get_data_oscan_slices(hdu_s)
             rn_est = min(np.std(hdu_s.data[poscan_s[0], soscan_s[1]]), max_rn)
@@ -220,7 +224,7 @@ def imxtalk():
             arr_x = arr_x.reshape(-1, 1)  # infer 1st axis, 2nd axis for 1 "feature"
             logging.debug("np.shape(arr_x)= %s", np.shape(arr_x))
             if np.size(arr_x) < 1000:
-                logging.warn(
+                logging.warning(
                     "not enough source points to produce a coef: %d < 100",
                     np.size(arr_x),
                 )
@@ -257,7 +261,7 @@ def imxtalk():
                     )
                     continue
                 (datasec_r, soscan_r, poscan_r) = iu.get_data_oscan_slices(hdu_r)
-                iu.subtract_bias(stype, ptype, hdu_r, bad_segs)
+                iu.subtract_bias(sbias, pbias, hdu_r, bad_segs)
                 # need to subtract background level estimate from hdu_s but it may
                 # have lots of structure so need somewhat careful estimate
                 # ------------
@@ -446,13 +450,11 @@ def imxtalk():
 
 
 def get_xtalk_coefs(hdulist: fits.HDUList, srcids, rspids, thresh):
-    """
-    """
+    """ """
 
 
 def ncalls():
-    """maintain a counter
-    """
+    """maintain a counter"""
     ncalls.counter += 1
 
 

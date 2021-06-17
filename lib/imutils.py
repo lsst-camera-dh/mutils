@@ -495,8 +495,7 @@ def eper_serial(hdu):
 
 
 def get_union_of_bad_column_segs(hdulist: fits.HDUList):
-    """
-    """
+    """ """
     shape = None
     segs = []
     for hdu in hdulist:
@@ -571,8 +570,7 @@ def get_disjoint_segments(indices: np.array) -> list:
 
 
 def merge_segments(segs: list, merge_distance: int = 8) -> list:
-    """ merge segments [start, stop], if within merge_distance
-    """
+    """merge segments [start, stop], if within merge_distance"""
     i = 1
     while i < len(segs):
         if segs[i - 1][1] + merge_distance > segs[i][0]:
@@ -624,7 +622,9 @@ def get_bad_column_segs(hdu):
     while retries > 0:
         # skips first few rows to avoid cti deferred signal -- matters at high sig
         test_row = np.percentile(
-            hdu.data[pstart + offset :, datasec[1]], (100.0 - pcnt), axis=0,
+            hdu.data[pstart + offset :, datasec[1]],
+            (100.0 - pcnt),
+            axis=0,
         )
         # tail end of parallel overscan to use for base level
         base_row = np.percentile(hdu.data[pstart + offset :, datasec[1]], pcnt, axis=0)
@@ -690,8 +690,7 @@ def get_bad_column_segs(hdu):
 
 
 def indices_to_segs(ind_arr: np.array):
-    """
-    """
+    """ """
     logging.debug("indices_to_segs() entry")
     seg_merge_dist = 8
     # get disjoint consecutive segments as seg=[startcol, endcol]
@@ -761,7 +760,9 @@ def get_bad_column_segs_old(hdu):
     while retries > 0:
         # skips first few rows to avoid cti deferred signal -- matters at high sig
         test_row = np.percentile(
-            hdu.data[pstart + offset :, datasec[1]], (100.0 - pcnt), axis=0,
+            hdu.data[pstart + offset :, datasec[1]],
+            (100.0 - pcnt),
+            axis=0,
         )
         # tail end of parallel overscan to use for base level
         base_row = np.percentile(hdu.data[pstart + offset :, datasec[1]], pcnt, axis=0)
@@ -948,7 +949,9 @@ def get_bad_columns(hdu):
     while retries > 0:
         # skips first few rows to avoid cti deferred signal -- matters at high sig
         test_row = np.percentile(
-            hdu.data[pstart + offset :, datasec[1]], (100.0 - pcnt), axis=0,
+            hdu.data[pstart + offset :, datasec[1]],
+            (100.0 - pcnt),
+            axis=0,
         )
         # tail end of parallel overscan to use for base level
         base_row = np.percentile(hdu.data[pstart + offset :, datasec[1]], pcnt, axis=0)
@@ -1209,8 +1212,8 @@ def image_combine_hdu(
     method: list,
     region: tuple,
     bimage: fits.HDUList,
-    stype: str,
-    ptype: str,
+    sbias: str,
+    pbias: str,
     scaling: tuple,
     hduo: fits.ImageHDU,
 ):
@@ -1227,8 +1230,8 @@ def image_combine_hdu(
     method: [median], [average], [sigmaclip, sigmaval], [rank, percentile]
     region: (yslice, xslice) specifying ROI to process, full image if None
     bimage: fits.HDUList object with (bias) image to subtract
-    stype: param for subtract_bias() function (in this module)
-    ptype: param for subtract_bias() function (in this module)
+    sbias: param for subtract_bias() function (in this module)
+    pbias: param for subtract_bias() function (in this module)
     scaling: (yslice, xslice) specifying ROI to use for scaling
     hduo: a basic ImageHDU object that is modified and is the functions result
     """
@@ -1236,8 +1239,8 @@ def image_combine_hdu(
     hdu_scale = []
     for im in iimages:
         hdu = im[hduid].copy()
-        if stype | ptype:
-            subtract_bias(stype, ptype, hdu)
+        if sbias or pbias:
+            subtract_bias(sbias, pbias, hdu)
         if scaling:
             svalue = np.median(hdu.data[scaling[0], scaling[1]])
             hdu_scale.append(svalue)
@@ -1386,3 +1389,27 @@ def subtract_background_for_xtalk(hdu, mask, datasec):
                 logging.debug("%s", row_arr)
 
     hdu.data -= bkgarr
+
+
+def auto_biastype(hdulist: fits.HDUList) -> tuple:
+    """
+    function for LSST CCD FITs files to return the CCD type: itl|e2v
+    raises KeyError if FITS keyword "LSST_NUM" is not present
+    raises ValueError if LSST_NUM is invalid
+    """
+    key = "LSST_NUM"
+    try:
+        lsstnum = hdulist[0].header[key]  # raises KeyError
+    except KeyError:
+        raise KeyError("Missing LSST_NUM keyword required for LSST Camera Image?")
+    if re.match(r"E2V", lsstnum):
+        sbias_str = "byrowe2v"
+        pbias_str = "bycolfilter"
+        logging.debug("auto_biastype is E2V")
+    elif re.match(r"ITL", lsstnum):
+        sbias_str = "byrow"
+        pbias_str = "bycolfilter"
+        logging.debug("auto_biastype is ITL")
+    else:
+        raise ValueError(f"LSST_NUM FITS key value: {key} is invalid")
+    return sbias_str, pbias_str

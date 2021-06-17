@@ -75,6 +75,12 @@ def parse_args():
         help="process HDU list by ids",
     )
     parser.add_argument("--region", nargs=1, help='2d-slicespec: "rows,cols"')
+
+    parser.add_argument(
+        "--bias",
+        action="store_true",
+        help="auto bias estimate removal by CCD type (itl, e2v)",
+    )
     parser.add_argument(
         "--sbias",
         nargs="?",
@@ -121,6 +127,17 @@ def imarith():
     else:
         hdulist2 = None
         operand2 = optlist.operand2.split()  # list of floats as strings
+
+    # use hdulist1 to determine the autobias if needed
+    if optlist.bias:  # auto set [sp]bias, overriding existing
+        try:
+            optlist.sbias, optlist.pbias = iu.auto_biastype(hdulist1)
+        except KeyError as kerr:
+            logging.error(kerr)
+            sys.exit(1)
+        except ValueError as verr:
+            logging.error(verr)
+            sys.exit(1)
 
     # create output image with primary header and updates
     hdulisto = iu.create_output_hdulist(hdulist1, sys.argv)
@@ -177,7 +194,7 @@ def imarith():
             hdulisto.append(hdu)
 
     # write the output file
-    hdulisto.info()
+    # hdulisto.info()
     hdulisto.writeto(optlist.result, overwrite=True)
     sys.exit(0)
 
@@ -251,13 +268,13 @@ def fmultiply(arg1, arg2):
 
 
 def fdivision(arg1, arg2):
-    """divide arg1 by arg2 """
+    """divide arg1 by arg2"""
     return arg1 / arg2
 
 
 def get_operand_type(operand):
     """validates operand string is either a filename or float(str)
-       returns 0=file, 1=number, 2=list, -1 otherwise
+    returns 0=file, 1=number, 2=list, -1 otherwise
     """
     logging.debug("operand = {}".format(operand))
     # Check for file first

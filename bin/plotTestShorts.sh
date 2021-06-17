@@ -50,4 +50,4 @@ if [ $savePlot ] ; then
     sarg=" --save "$(echo -n $1 | sed 's?/?_?g' | sed 's?\^??' )"_TestShorts.png"
 fi
 
-trender.py --lay 4x1 --out ${sarg} --start "${2}" --title "testCCDShorts:${1}" --overlayreg --plot --dur $duration --fmt 'o-' -- "${regexes[@]}"
+trender.py --site localhost --lay 4x1 --out ${sarg} --start "${2}" --title "testCCDShorts:${1}" --overlayreg --plot --dur $duration --fmt 'o-' -- "${regexes[@]}"

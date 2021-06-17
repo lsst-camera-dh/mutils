@@ -43,6 +43,16 @@ sites["slac"]["server"] = "lsst-mcm.slac.stanford.edu"
 sites["slac"]["port"] = 8080
 sites["slac"]["tz"] = "America/Los_Angeles"
 #
+sites["lab1"] = dict()
+sites["lab1"]["name"] = "lab1"
+sites["lab1"]["netregex"] = r"134.79.100.11"
+# sites["lab1"]["netregex"] = r"[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+"
+sites["lab1"]["server"] = "rddev101.slac.stanford.edu"
+sites["lab1"]["server"] = "localhost"
+sites["lab1"]["port"] = 8081
+sites["lab1"]["tz"] = gettz().tzname(datetime.now())
+
+#
 sites["ats"] = dict()
 sites["ats"]["name"] = "ats"
 sites["ats"]["netregex"] = r"139\.229\.170\.[0-9]"
@@ -111,14 +121,13 @@ def get_site(site_name):
 
 
 def deltamtime(pathname):
-    """ time since last mod
-    """
+    """time since last mod"""
     return time.time() - os.stat(pathname)[stat.ST_MTIME]
 
 
 def get_all_channels(site: str, maxidle: int = -1):
     """get list of channels from the server
-       maxidle recovers channels active within maxidle seconds
+    maxidle recovers channels active within maxidle seconds
     """
     trending_server = sites[site]["server"]
     trending_port = sites[site]["port"]
@@ -161,19 +170,20 @@ def parse_datestr(datestr=None):
 
 
 def get_time_interval(startstr, stopstr, duration=None):
-    """return the timeinterval boundaries (ms) from datestrings
-    """
+    """return the timeinterval boundaries (ms) from datestrings"""
     if startstr:
         t1 = parse_datestr(startstr)
         logging.debug(
-            "t1 as UTC: %s", datetime.utcfromtimestamp(t1),
+            "t1 as UTC: %s",
+            datetime.utcfromtimestamp(t1),
         )
         t1 *= 1000
 
     if stopstr:
         t2 = parse_datestr(stopstr)
         logging.debug(
-            "t2 as UTC: %s", datetime.utcfromtimestamp(t2),
+            "t2 as UTC: %s",
+            datetime.utcfromtimestamp(t2),
         )
         t2 *= 1000
 
@@ -305,8 +315,7 @@ def test_trending_server(site: str):
 
 
 def geturi(uri):
-    """return the xml file from internet or locally
-    """
+    """return the xml file from internet or locally"""
     res = re.match(r"http.*", uri)
     if res:
         #  we have a url, use request to return it
@@ -337,7 +346,7 @@ def geturi(uri):
 
 def print_channel_content(xmlcontent, ssnames):
     """Walk the tree, find items with subsystem and trending matches
-       print out the path and trending-ID
+    print out the path and trending-ID
     """
     root = etree.fromstring(xmlcontent)
     for ssname in ssnames:
@@ -367,8 +376,7 @@ def print_channel_content(xmlcontent, ssnames):
 
 
 def print_channel_structure(xmlcontent):
-    """ print out xml tree structure using algorithm from stackoverflow.com
-    """
+    """print out xml tree structure using algorithm from stackoverflow.com"""
     #
     xml_root = etree.fromstring(xmlcontent)
     raw_tree = etree.ElementTree(xml_root)
@@ -395,7 +403,7 @@ def print_channel_structure(xmlcontent):
 
 def update_trending_channels_xml(site, tstart=None, tstop=None):
     """maintain local cache of trending channels in xml file
-       arg: tstart -- channels active since tstart (seconds since the epoch)
+    arg: tstart -- channels active since tstart (seconds since the epoch)
     """
     logging.debug("update_trending_channels_xml(%s, %s)", tstart, tstop)
     cachedir = "{}/.trender".format(os.environ.get("HOME"))
@@ -524,13 +532,13 @@ def long_substr(data: list) -> str:
 
 def query_rest_server(ts1, ts2, data_url, idstr, nbins):
     """get xml from restful interface for the requested channels
-       with a single request
-       inputs:
-           t1, t2 are start/stop time in ms
-           data_url is "server-url:port/default-path"
-           idstr is all channel ids as '&id='.join(id for id in oflds)
-           nbins: request raw (=None) or binned data from DB
-       output: raw xml response from the service is returned
+    with a single request
+    inputs:
+        t1, t2 are start/stop time in ms
+        data_url is "server-url:port/default-path"
+        idstr is all channel ids as '&id='.join(id for id in oflds)
+        nbins: request raw (=None) or binned data from DB
+    output: raw xml response from the service is returned
     """
     s = requests.Session()
     if nbins is None:  # raw data

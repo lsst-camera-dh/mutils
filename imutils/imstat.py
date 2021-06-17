@@ -25,7 +25,7 @@ try:
     import mutils as mu
 except ImportError as e:
     logging.error("Import failed: %s", e)
-    exit(1)
+    sys.exit(1)
 
 
 def parse_args():
@@ -84,6 +84,11 @@ def parse_args():
         "--hduindex", nargs="+", type=int, metavar="idx", help="process HDU list by ids"
     )
     # ---------------------------------------------------------------
+    parser.add_argument(
+        "--bias",
+        action="store_true",
+        help="auto bias estimate removal by CCD type (itl, e2v)",
+    )
     parser.add_argument(
         "--sbias",
         nargs="?",
@@ -154,10 +159,19 @@ def imstat():
             hdulist = fits.open(ffile)
         except IOError as ioerr:
             logging.error("IOError: %s", ioerr)
-            exit(1)
+            sys.exit(1)
         if optlist.info:  # just print the image info per file
             hdulist.info()
             continue
+        if optlist.bias:  # auto set [sp]bias, overriding existing
+            try:
+                optlist.sbias, optlist.pbias = iu.auto_biastype(hdulist)
+            except KeyError as kerr:
+                logging.error(kerr)
+                sys.exit(1)
+            except ValueError as verr:
+                logging.error(verr)
+                sys.exit(1)
         if not optlist.noheadings:  # print filename
             print("#")
             print("# {}".format(os.path.basename(ffile)))
@@ -173,8 +187,7 @@ def imstat():
 
 
 def stats_proc(optlist, hduids, hdulist):
-    """print statistics for region according to options
-    """
+    """print statistics for region according to options"""
     # Process each HDU in the list "hduids"
     for hduid in hduids:
         hdu = hdulist[hduid]
@@ -210,8 +223,7 @@ def stats_proc(optlist, hduids, hdulist):
 
 
 def stats_print(optlist, sid, name, buf, reg):
-    """perform and print the given statistics quantities
-    """
+    """perform and print the given statistics quantities"""
     if not optlist.stats:
         optlist.stats = ["mean", "median", "stddev", "min", "max"]
 
@@ -263,8 +275,7 @@ def stats_print(optlist, sid, name, buf, reg):
 
 
 def quicklook(optlist, hduids, hdulist):
-    """print quicklook for hdu's according to options
-    """
+    """print quicklook for hdu's according to options"""
     try:
         expt = float(hdulist[0].header["EXPTIME"])
     except KeyError as ke:
@@ -306,7 +317,7 @@ def quicklook(optlist, hduids, hdulist):
         (datasec, soscan, poscan) = iu.get_data_oscan_slices(hdu)
         if not datasec or not soscan or not poscan:
             logging.error("Could not get DATASEC or overscan specs for %s", name)
-            exit(1)
+            sys.exit(1)
 
         if optlist.rstats:
             median_str, bias_str, noise_str = "rmedian", "rbias", "rnoise"
@@ -365,7 +376,7 @@ def quicklook(optlist, hduids, hdulist):
         if "mean" in quick_fields:
             print(" {:>9.6g}".format(sig_mean), end="")
         if "bias" in quick_fields:
-            print(" {:>9.6g}".format(bias_mean), end="")
+            print(" {:>9.5g}".format(bias_mean), end="")
         if "signal" in quick_fields:
             signal = sig_mean - bias_mean
             print(" {:>9.6g}".format(signal), end="")
@@ -423,106 +434,6 @@ def quicklook(optlist, hduids, hdulist):
         ncalls()  # track call count, acts like static variable)
 
 
-def eper_serial(hdu):
-    """
-    Given datasec and serial overscan as slices, calculate
-    eper using the first ecols=3 columns of serial overscan
-    """
-    datasec, soscan, poscan = iu.get_data_oscan_slices(hdu)
-    ecols = 3  # number of columns used for eper signal
-    ncols = datasec[1].stop - datasec[1].start
-
-    # define signal region: mid 20% in y, last 5% in x)
-    y0 = int(0.6 * datasec[0].start) + int(0.4 * datasec[0].stop)
-    y1 = int(0.4 * datasec[0].start) + int(0.6 * datasec[0].stop)
-    sx0 = int(0.05 * datasec[1].start) + int(0.95 * datasec[1].stop)
-    sx1 = datasec[1].stop - 1
-    logging.debug("s_r=%s[%s:%s,%s:%s]", hdu.name, y0, y1, sx0, sx1)
-    s_r = (slice(y0, y1), slice(sx0, sx1))
-
-    # define bias region: same rows as signal, exclude 1st cols in x
-    logging.debug(
-        "b_r=%s[%s:%s,%s:%s]", hdu.name, y0, y1, soscan[1].start + ecols, soscan[1].stop
-    )
-    b_r = (slice(y0, y1), slice(soscan[1].start + ecols, soscan[1].stop))
-    # define eper region: same rows as signal, 1st ecols cols in x
-    logging.debug(
-        "e_r=%s[%s:%s,%s:%s]",
-        hdu.name,
-        y0,
-        y1,
-        soscan[1].start,
-        soscan[1].start + ecols,
-    )
-    e_r = (slice(y0, y1), slice(soscan[1].start, soscan[1].start + ecols))
-
-    bias_mean = np.mean(hdu.data[b_r])
-    # signal
-    l_n = np.mean(hdu.data[s_r]) - bias_mean
-    logging.debug("l_n=%10.6g", l_n)
-    # deferred charge is avg of sum of ecols above bias
-    l_nn = np.mean((hdu.data[e_r] - bias_mean).sum(axis=1))
-    logging.debug("l_nn=%10.6g", l_nn)
-    if l_n > 0.0:
-        eper = 1 - (l_nn / (ncols * l_n))
-        return eper
-    else:
-        return None
-
-
-def eper_parallel_old(hdu):
-    """
-    Given datasec and parallel overscan as slices, calculate
-    eper using the first erows=3 rows of parallel overscan
-    """
-    datasec, soscan, poscan = iu.get_data_oscan_slices(hdu)
-    erows = 3  # number of rows used for eper signal
-    nrows = datasec[0].stop - datasec[0].start
-
-    # define signal region: last 1% in y
-    y0 = int(0.01 * datasec[0].start) + int(0.99 * datasec[0].stop)
-    y1 = datasec[0].stop - 1
-    sx0 = datasec[1].start
-    sx1 = datasec[1].stop
-    logging.debug("s_r=%s[%s:%s,%s:%s]", hdu.name, y0, y1, sx0, sx1)
-    s_r = (slice(y0, y1), slice(sx0, sx1))
-
-    # define bias region: same cols as signal, exclude 1st rows in y
-    logging.debug(
-        "b_r=%s[%s:%s,%s:%s]",
-        hdu.name,
-        # poscan[0].start + erows,
-        poscan[0].stop - erows,
-        poscan[0].stop,
-        sx0,
-        sx1,
-    )
-    b_r = (slice(poscan[0].stop - erows, poscan[0].stop), slice(sx0, sx1))
-    # define eper region: same rows as signal, 1st erows cols in x
-    logging.debug(
-        "e_r=%s[%s:%s,%s:%s]",
-        hdu.name,
-        poscan[0].start,
-        poscan[0].start + erows,
-        sx0,
-        sx1,
-    )
-    e_r = (slice(poscan[0].start, poscan[0].start + erows), slice(sx0, sx1))
-
-    bias_mean_row = np.mean(hdu.data[b_r], axis=0)
-    # signal
-    l_n = np.mean(np.median(hdu.data[s_r], axis=0) - bias_mean_row)
-    logging.debug("l_n=%10.6g", l_n)
-    # deferred charge is avg of sum of ecols above bias
-    l_nn = np.mean((hdu.data[e_r] - bias_mean_row).sum(axis=0))
-    logging.debug("l_nn=%10.6g", l_nn)
-    if l_n > 0.0:
-        eper = 1 - (l_nn / (nrows * l_n))
-        return eper
-    else:
-        return None
-
-
 def tearing_metric(buf, trows):
     """
     buf is one segment (w/out pre/over-scan) of an lsst ccd
@@ -569,8 +480,7 @@ def count_dipoles(buf):
 
 
 def ncalls():
-    """maintain a counter
-    """
+    """maintain a counter"""
     ncalls.counter += 1
 
 

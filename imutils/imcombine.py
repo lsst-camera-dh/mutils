@@ -53,7 +53,9 @@ def parse_args():
     # processing options
     #
     parser.add_argument("--ifile", nargs=1, type=str, help="output fits_image name")
-    parser.add_argument("--result", nargs=1, type=str, help="output fits_image name")
+    parser.add_argument(
+        "--result", nargs=1, required=True, type=str, help="output fits_image name"
+    )
     # processing choices for image combining
     mgroup = parser.add_mutually_exclusive_group()
     mgroup.add_argument(
@@ -93,6 +95,12 @@ def parse_args():
     parser.add_argument("--region", nargs=1, help='2d-slicespec: "rows,cols"')
     # bias subtraction controls
     parser.add_argument("--bimage", nargs=1, help="subtract a bias image")
+
+    parser.add_argument(
+        "--bias",
+        action="store_true",
+        help="auto bias estimate removal by CCD type (itl, e2v)",
+    )
     parser.add_argument(
         "--sbias",
         nargs="?",
@@ -174,6 +182,16 @@ def imcombine():
     # create output image with primary header and updates
     hdulisto = iu.create_output_hdulist(iimages[0], sys.argv)
 
+    if optlist.bias:  # auto set [sp]bias, overriding existing
+        try:
+            optlist.sbias, optlist.pbias = iu.auto_biastype(hdulisto)
+        except KeyError as kerr:
+            logging.error(kerr)
+            sys.exit(1)
+        except ValueError as verr:
+            logging.error(verr)
+            sys.exit(1)
+
     # get all requested hduids
     hduids_to_proc = iu.get_requested_hduids(
         iimages[0], optlist.hduname, optlist.hduindex
@@ -226,7 +244,7 @@ def imcombine():
                 region,
                 bimage,
                 optlist.sbias,
-                optlist.ptype,
+                optlist.pbias,
                 scaling,
                 hduo,
             )
