@@ -83,8 +83,8 @@ def parse_args():
     )
     parser.add_argument(
         "--offset",
-        choices=["mean", "median", "delta"],
-        help="plot relative from mean, median or w/offset",
+        nargs=1,
+        help='offset choices: "mean", "median", "delta", or <value> (eg 27000)',
     )
     parser.add_argument("--overlay", action="store_true", help="all lines in one plot")
 
@@ -369,8 +369,13 @@ def implot():
         elif optlist.offset == "delta":
             ax.set_ylabel("signal - mean + 5*j*stdev, j=0,1,..", size="x-small")
         else:
-            logging.error("invalid --offset choice")
-            sys.exit(1)
+            try:
+                offset_value = float(optlist.offset)
+            except ValueError as verr:
+                logging.error("ValueError: %s", verr)
+                logging.error("invalid --offset choice")
+                sys.exit(1)
+
         # x label
         ax.grid(True)
         if optlist.row is not None:

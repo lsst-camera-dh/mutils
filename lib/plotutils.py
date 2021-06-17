@@ -269,8 +269,13 @@ def line_plot(
             # offset by 5 std's per line
             line1 = line1 - med + len(pax.lines) * 5 * std
         else:
-            logging.error("invalid offset or programmer error")
-            exit(1)
+            try:
+                offset_val = float(optlist.offset)
+                line1 = line1 - offset_val
+            except ValueError as verr:
+                logging.error("ValueError: %s", verr)
+                logging.error("invalid offset or programmer error")
+                exit(1)
 
     #  plot the line: np.arrays are 0 indexed, fits is 1 indexed
     xa = np.arange(len(pix[0, :]))
