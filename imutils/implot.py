@@ -83,7 +83,8 @@ def parse_args():
     )
     parser.add_argument(
         "--offset",
-        nargs=1,
+        nargs='?',
+        const="median",
         help='offset choices: "mean", "median", "delta", or <value> (eg 27000)',
     )
     parser.add_argument("--overlay", action="store_true", help="all lines in one plot")

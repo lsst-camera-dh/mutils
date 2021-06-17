@@ -270,7 +270,7 @@ def line_plot(
             line1 = line1 - med + len(pax.lines) * 5 * std
         else:
             try:
-                offset_val = float(optlist.offset)
+                offset_val = float(plot_offset)
                 line1 = line1 - offset_val
             except ValueError as verr:
                 logging.error("ValueError: %s", verr)

@@ -241,9 +241,9 @@ def stats_print(optlist, sid, name, buf, reg):
         if [stat for stat in optlist.stats if re.match(r"^std", stat)]:
             print(" {:>8s}".format(stddev_str), end="")
         if [stat for stat in optlist.stats if re.match(r"^min", stat)]:
-            print(" {:>8s}".format("min"), end="")
+            print(" {:>9s}".format("min"), end="")
         if [stat for stat in optlist.stats if re.match(r"^max", stat)]:
-            print(" {:>8s}".format("max"), end="")
+            print(" {:>9s}".format("max"), end="")
         if reg:
             print("  {:20s}".format("region"), end="")
         print("")  # newline)
@@ -257,15 +257,15 @@ def stats_print(optlist, sid, name, buf, reg):
         avg, med, std = np.mean(buf), np.median(buf), np.std(buf)
 
     if [stat for stat in optlist.stats if re.match(r"^mea", stat)]:
-        print(" {:>9.4g}".format(avg), end="")
+        print(" {:>9.6g}".format(avg), end="")
     if [stat for stat in optlist.stats if re.match(r"^med", stat)]:
-        print(" {:>9.4g}".format(med), end="")
+        print(" {:>9.6g}".format(med), end="")
     if [stat for stat in optlist.stats if re.match(r"^std", stat)]:
-        print(" {:>8.3g}".format(std), end="")
+        print(" {:>8.4g}".format(std), end="")
     if [stat for stat in optlist.stats if re.match(r"^min", stat)]:
-        print(" {:>8.4g}".format(np.min(buf)), end="")
+        print(" {:>9.6g}".format(np.min(buf)), end="")
     if [stat for stat in optlist.stats if re.match(r"^max", stat)]:
-        print(" {:>8.4g}".format(np.max(buf)), end="")
+        print(" {:>9.6g}".format(np.max(buf)), end="")
 
     if reg:
         reg = re.sub(r"^\[*([^\]]*)\]*$", r"\1", reg)
