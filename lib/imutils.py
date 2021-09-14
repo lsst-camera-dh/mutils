@@ -75,7 +75,7 @@ def init_image_hdu(
     hdro.set("NAXIS2", hdri["NAXIS2"], "size of the n'th axis", after="NAXIS1")
     hdro["BITPIX"] = -32
     # make changes to account for region of interest subimage
-    if region and region is not (None, None):
+    if region and region != (None, None):
         logging.debug("region = {}".format(region))
         naxis2 = (region[0].stop or len(hdui.data[:, 0])) - (region[0].start or 0)
         naxis1 = (region[1].stop or len(hdui.data[0, :])) - (region[1].start or 0)
