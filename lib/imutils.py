@@ -589,7 +589,7 @@ def get_bad_column_segs(hdu):
     Given hdu, produce an list of ordered pairs [a,b] where columns
     a through b inclusive are "bad" as in hot/saturated
     The search is based on the parallel overscan.
-    An effort is made to deal with saturation until it gets too high.
+    An effort is made to deal with global saturation until it gets too high.
     """
     logging.debug("get_bad_column_segs(): entry")
     # define basic regions
@@ -659,7 +659,7 @@ def get_bad_column_segs(hdu):
             logging.debug("expanded segment=[%s, %s]", seg[0], seg[1])
 
         # merge segments that are close (8) to each other
-        segs = merge_segments(segs, 8)
+        segs = merge_segments(segs, seg_merge_dist)
         segsum = sum([seg[1] - seg[0] for seg in segs])
         logging.debug("segsum=%d", segsum)
         if sum([seg[1] - seg[0] for seg in segs]) > int(np.size(base_row) / 2):
@@ -672,12 +672,6 @@ def get_bad_column_segs(hdu):
                 return None
         else:
             break
-
-    # trim the ends
-    # bad_ind = np.intersect1d(np.arange(datasec[1].stop - datasec[1].start), bad_ind)
-    # logging.debug("trimmed bad_ind=%s", bad_ind + datasec[1].start)
-
-    # segs = indices_to_segs(bad_ind)
 
     origin = datasec[1].start
     for seg in segs:
@@ -847,7 +841,7 @@ def get_bias_filtered_est_row(hdu, bad_segs=None):
     bias_est_row = np.percentile(hdu.data[poscan[0].start + offset :, :], pcnt, axis=0)
 
     if not bad_segs:
-        logging.debug("get_bias_filtered_est_row->get_bad_columns_segs()")
+        logging.debug("get_bias_filtered_est_row->get_bad_column_segs()")
         bad_segs = get_bad_column_segs(hdu)  # sorted list of disjoint segments
 
     logging.debug("bad_segs=%s", bad_segs)

@@ -34,7 +34,7 @@ def parse_args():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         description=textwrap.dedent(
             """\
-            Calculate statistical quantities for image")
+            Calculate statistical quantities for image
                                     """
         ),
         epilog=textwrap.dedent(
@@ -282,7 +282,9 @@ def quicklook(optlist, hduids, hdulist):
         try:
             expt = float(hdulist[0].header["DARKTIME"])
         except KeyError as ke:
-            logging.warning("EXPTIME|DARKTIME non in header, adu/sec won't be available")
+            logging.warning(
+                "EXPTIME|DARKTIME non in header, adu/sec won't be available"
+            )
             expt = 0
 
     # perform and print the given statistics quantities

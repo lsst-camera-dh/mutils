@@ -205,6 +205,8 @@ def file_to_tokens(ifiles: list) -> list:
     skipping comment and blank lines.  Inline comments are filtered
     out as well (within reason).
     """
+    if not ifiles:
+        return []
     #
     # derived from https://stackoverflow.com/questions/16710076
     # regex to split a string preserving quoted fields
@@ -224,8 +226,8 @@ def file_to_tokens(ifiles: list) -> list:
     for ffile in ifiles:
         try:
             ff = open(ffile, mode="r")
-        except OSError as e:
-            logging.debug("open(%s) failed: %s", ffile, e)
+        except OSError:
+            logging.debug("open(%s) failed on %s", ffile)
         else:
             for line in ff:
                 if re.match(r"^\s*#", line):  # skip block comment
@@ -237,3 +239,5 @@ def file_to_tokens(ifiles: list) -> list:
                 # tokenize what remains
                 yield ["".join(t) for t in rpat.findall(sline)]
             ff.close()
+    else:
+        return []
