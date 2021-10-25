@@ -445,8 +445,11 @@ def subtract_bias(stype: str, ptype: str, hdu: fits.ImageHDU, bad_segs: list = N
         a0 = convolve(a0, kernel, boundary="extend")
         b0 = convolve(b0, kernel, boundary="extend")
         a0 = a0 - b0
+        a0max = np.percentile(np.abs(a0), 99.0)  # clip the top 1%
         naxis1 = np.shape(hdu.data)[1]
-        i0 = (-3.0 / naxis1) * np.arange(naxis1)  # exp decay row vector
+        alpha = math.log(rn_est / 15.0 / a0max)  # set decay to below 1/5 rn (~3)
+        logging.debug("use alpha: %.2f = ln(%.2f / 15.0 / %.2f)", alpha, rn_est, a0max)
+        i0 = (alpha / naxis1) * np.arange(naxis1)  # exp decay row vector
         e0 = np.exp(i0)
         for i in np.arange(np.size(hdu.data[:, 0])):
             if abs(a0[i]) > 50 * rn_est:  # limit this to sensible values

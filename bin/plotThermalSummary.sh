@@ -13,13 +13,14 @@ function usage {
     -t (use time averaged data, good on long queries)
     -p (only plot temps used in PID controls)
     -e echo command line only
+    -v verbose output
 EOM
 exit 1
 }
 #-- process commandline options
 #
 duration=
-while getopts "sehd:tp" Option
+while getopts "vsehd:tp" Option
 do
   case $Option in
     h  ) usage;;
@@ -28,6 +29,7 @@ do
     t  ) timebins="yes";;
     s  ) savePlot="yes";;
     p  ) pidonly="yes";;
+    v  ) verbose="yes";;
     *  ) ${ECHO} "Unimplemented option chosen.";;   # Default.
   esac
 done
@@ -80,7 +82,7 @@ nonPIDrtds+=('focal-plane/R43/Reb0/S01/Temp')
 nonPIDrtds+=('focal-plane/R43/Reb1/S12/Temp')
 nonPIDrtds+=('focal-plane/R43/Reb2/S21/Temp')
 
-if [ $duration"XXX" == "XXX" ] ; then
+if [ ${duration}"XXX" == "XXX" ] ; then
       duration=10m
 fi
 
@@ -92,14 +94,18 @@ if [ $pidonly ] ; then
     badCCDrtds+=( ${nonPIDrtds[@]} )
 fi
 
+if [ $verbose ] ; then
+    verbose='--debug'
+fi
+
 sarg=
 if [ $savePlot ] ; then
     sarg=" --save /tmp/"$(echo -n $1 | sed 's?/?_?g')"_TestShorts.png"
 fi
 
 if [ $echocmd ] ; then
-    echo trender.py ${st} --dur $duration ${timebins} --title \"CryoStat Thermal Summary\" --layout 4x2 --plot --outside --reject \"${badCCDrtds[@]}\" --overlayregex -- \"${regexes[@]}\"
+    echo trender.py ${verbose} ${sarg} ${st} --dur $duration ${timebins} --title \"CryoStat Thermal Summary\" --layout 4x2 --plot --outside --reject \"${badCCDrtds[@]}\" --overlayregex -- \"${regexes[@]}\"
     exit 0
 fi
 
-trender.py ${sarg} ${st} --dur $duration ${timebins} --title "CryoStat Thermal Summary" --layout 4x2 --plot --outside --reject "${badCCDrtds[@]}" --overlayregex -- "${regexes[@]}"
+trender.py ${verbose} ${sarg} ${st} --dur $duration ${timebins} --title "CryoStat Thermal Summary" --layout 4x2 --plot --outside --reject "${badCCDrtds[@]}" --overlayregex -- "${regexes[@]}"

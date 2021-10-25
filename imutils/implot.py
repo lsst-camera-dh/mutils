@@ -78,12 +78,12 @@ def parse_args():
     parser.add_argument(
         "--ltype",
         default="median",
-        choices=["median", "mean", "clipped", "series"],
+        choices=["median", "mean", "clipped", "timeorder"],
         help="line type: 2d->1d method, default: %(default)s",
     )
     parser.add_argument(
         "--offset",
-        nargs='?',
+        nargs="?",
         const="median",
         help='offset choices: "mean", "median", "delta", or <value> (eg 27000)',
     )
@@ -381,12 +381,12 @@ def implot():
         ax.grid(True)
         if optlist.row is not None:
             ax.set_xlabel("column", size="x-small")
-            if optlist.ltype == "series":
-                ax.set_xlabel("col series", size="x-small")
+            if optlist.ltype == "timeorder":
+                ax.set_xlabel("time ordered series", size="x-small")
         elif optlist.col is not None:
             ax.set_xlabel("row", size="x-small")
-            if optlist.ltype == "series":
-                ax.set_xlabel("row series", size="x-small")
+            if optlist.ltype == "timeorder":
+                ax.set_xlabel("time ordered series", size="x-small")
         else:
             logging.error("must have one of --row or --col")
             sys.exit(1)

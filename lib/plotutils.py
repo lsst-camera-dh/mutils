@@ -131,10 +131,9 @@ def plot_hdus(optdict: dict, hduids: list, hdulist: fits.HDUList, pax: plt.axes)
         bias      True|False for auto: overrides sbias, pbias
         sbias     mean|median|byrow|byrowsmooth
         pbias     mean|median|bycol|bycolsmooth|lsste2v|lsstitl
-        ltype     median|mean|clipped|series
+        ltype     median|mean|clipped|timeorder
         steps     default|steps-mid
         offset    mean|median|delta
-        series    boolean
         wcs       str
         smooth    int
     hduids: List of hdu ids to work on
@@ -236,12 +235,8 @@ def line_plot(
         line1 = np.median(pix[slice_spec], axis=map_axis)
     elif map_type == "mean":
         line1 = np.mean(pix[slice_spec], axis=map_axis)
-    elif map_type == "series":
-        if map_axis == 0:
-            order = "F"
-        if map_axis == 1:
-            order = "C"
-        line1 = pix[slice_spec].flatten(order)
+    elif map_type == "timeorder":
+        line1 = pix[slice_spec].flatten("C")  #
     elif map_type == "clipped":
         l1_avg, line1, l1_std = stats.sigma_clipped_stats(
             pix[slice_spec], axis=map_axis
@@ -304,7 +299,7 @@ def line_plot(
             if s[0] == s[-1]:
                 s = t
 
-    if map_type == "series":
+    if map_type == "timeorder":
         s = np.arange(0, len(line1))
 
     if smooth:  # smooth the line
