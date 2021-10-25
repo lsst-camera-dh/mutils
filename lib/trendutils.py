@@ -45,16 +45,16 @@ sites["slac"]["tz"] = "America/Los_Angeles"
 #
 sites["lab1"] = dict()
 sites["lab1"]["name"] = "lab1"
-#sites["lab1"]["netregex"] = r"134.79.100.11"
-sites["lab1"]["netregex"] = r"999.999.999.999" # never matches
+# sites["lab1"]["netregex"] = r"134.79.100.11"
+sites["lab1"]["netregex"] = r"999.999.999.999"  # never matches
 sites["lab1"]["server"] = "rddev101.slac.stanford.edu"
 sites["lab1"]["port"] = 8080
 sites["lab1"]["tz"] = gettz().tzname(datetime.now())
 #
 sites["lab1tunnel"] = dict()
 sites["lab1tunnel"]["name"] = "lab1tunnel"
-#sites["lab1tunnel"]["netregex"] = r"134.79.100.11"
-sites["lab1tunnel"]["netregex"] = r"999.999.999.999" # never matches
+# sites["lab1tunnel"]["netregex"] = r"134.79.100.11"
+sites["lab1tunnel"]["netregex"] = r"999.999.999.999"  # never matches
 # sites["lab1tunnel"]["netregex"] = r"[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+"
 sites["lab1tunnel"]["server"] = "localhost"
 sites["lab1tunnel"]["port"] = 8081
@@ -77,7 +77,7 @@ sites["summit"]["tz"] = "UTC"
 sites["comcam"] = dict()
 sites["comcam"]["name"] = "comcam"
 sites["comcam"]["netregex"] = r"139\.229\.150\.[0-9]"
-sites["comcam"]["server"] = "comcam-db01.ls.lsst.org"
+sites["comcam"]["server"] = "comcam-db01.cp.lsst.org"
 sites["comcam"]["port"] = 8080
 sites["comcam"]["tz"] = "UTC"
 #
