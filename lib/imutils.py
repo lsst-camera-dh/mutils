@@ -224,7 +224,7 @@ def get_requested_image_hduids(
     hdulist: fits.HDUList, hdunames: list, hduindices: list
 ) -> list:
     """
-    Return a list of image hduids requested in optlist or all by default.
+    Return a list of image hduids requested in hdunames or all by default.
 
     Check that they exist in hdulist and have data.  Requested hduids that
     don't exist are skipped.  Redundant values are dropped.
@@ -378,26 +378,28 @@ def subtract_bias(stype: str, ptype: str, hdu: fits.ImageHDU, bad_segs: list = N
     # serial overscan first pass
     if stype:
         if stype in ("byrow", "byrowsmooth", "byrowe2v", "byrowsmoothe2v"):
-            so_med = np.percentile(hdu.data[soscan], 50, axis=1)
-            # clean up any crazy rows (eg overflow in serial from hot column)
+            so_med = np.percentile(hdu.data[soscan][:, 5:], 50, axis=1)
+            so_c14 = np.max(hdu.data[soscan][:, 1:4], axis=1)
+            # clean up any crazy rows (eg overflow from hot column or saturation)
             so_med_med = np.median(so_med)
-            so_med_bad_ind = np.nonzero(np.abs(so_med - so_med_med) > 100 * rn_est)
-            logging.debug("anomalous soscan rows: %s", np.size(so_med_bad_ind))
+            so_med_bad_ind = np.nonzero(so_c14 - so_med_med > 100 * rn_est)
+            logging.debug("anomalous soscan rows: %s", so_med_bad_ind)
             if np.size(so_med_bad_ind):
-                so_med[so_med_bad_ind] = so_med_med
+                so_med[so_med_bad_ind] = np.nan
             if stype in ("byrowsmooth", "byrowsmoothe2v"):
                 logging.debug("smoothing serial overscan with Gaussian1DKernel")
                 kernel = Gaussian1DKernel(1)
                 so_med = convolve(so_med, kernel, boundary="extend")
             # convert shape from (n,) to (n, 1)
+            so_med[np.isnan(so_med)] = 0.0  # bad rows are not corrected
             logging.debug("mean serial overscan subtraction: %d", np.median(so_med))
             logging.debug("first 20 rows: \n%s", so_med[0:20])
             so_med = so_med.reshape(np.shape(so_med)[0], 1)
             hdu.data = hdu.data - so_med
         elif stype == "mean":
-            hdu.data = hdu.data - np.mean(hdu.data[soscan])
+            hdu.data = hdu.data - np.mean(hdu.data[soscan][:, 5:])
         elif stype == "median":
-            hdu.data = hdu.data - np.median(hdu.data[soscan])
+            hdu.data = hdu.data - np.median(hdu.data[soscan][:, 5:])
         else:
             logging.error("stype: %s not valid", stype)
             sys.exit(1)
@@ -437,14 +439,16 @@ def subtract_bias(stype: str, ptype: str, hdu: fits.ImageHDU, bad_segs: list = N
     # second serial pass to take out special bias effect on selected e2v CCDs
     if stype and stype in ("byrowe2v", "byrowsmoothe2v"):
         # subtract an exp decay with amplitude from prescan along each row
-        a0 = np.mean(hdu.data[:, 1 : datasec[1].start], axis=1)
+        a0 = np.mean(hdu.data[:, 1 : datasec[1].start - 2], axis=1)
+        a0[np.abs(a0) > 20 * rn_est] = np.nan
         b0 = np.median(hdu.data[soscan][:, 5:], axis=1)
-        # smooth a, sort of double smoothed in smoothe2v case but...
-        logging.debug("smoothing serial overscan with Gaussian1DKernel")
+        b0[np.abs(b0) > 20 * rn_est] = np.nan
         kernel = Gaussian1DKernel(1.0)
         a0 = convolve(a0, kernel, boundary="extend")
         b0 = convolve(b0, kernel, boundary="extend")
         a0 = a0 - b0
+        a0[np.isnan(a0)] = 0.0
+        logging.debug("a0[0:20] = %s", np.array2string(a0[0:20]))
         a0max = np.percentile(np.abs(a0), 99.0)  # clip the top 1%
         naxis1 = np.shape(hdu.data)[1]
         alpha = math.log(rn_est / 15.0 / a0max)  # set decay to below 1/5 rn (~3)
@@ -452,11 +456,7 @@ def subtract_bias(stype: str, ptype: str, hdu: fits.ImageHDU, bad_segs: list = N
         i0 = (alpha / naxis1) * np.arange(naxis1)  # exp decay row vector
         e0 = np.exp(i0)
         for i in np.arange(np.size(hdu.data[:, 0])):
-            if abs(a0[i]) > 50 * rn_est:  # limit this to sensible values
-                a0[i] = 0.0
             hdu.data[i, :] -= a0[i] * e0 + b0[i]
-        logging.debug("a0[0:20] = %s", np.array2string(a0[0:20]))
-        logging.debug("b0[0:20] = %s", np.array2string(b0[0:20]))
 
 
 def eper_serial(hdu):
@@ -1066,9 +1066,9 @@ def get_bias_filtered_est_row_old(hdu):
 
 def eper_parallel(hdu):
     """
-    Given hdu, calculate eper using the first erows (6) rows of parallel overscan
-    Note once eper <~ 0.998 it is not accurate as deferred charge then extends
-    out beyond the 6 rows used
+    Given hdu, calculate eper using parallel overscan
+    Note once eper <~ 0.998 accuracy is reduced although effort is made
+    to deal with saturation extending into the parallel overscan
     """
     datasec, soscan, poscan = get_data_oscan_slices(hdu)
     # need a return None if any of those are missing
