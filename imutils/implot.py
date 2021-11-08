@@ -267,7 +267,7 @@ def implot():
     #  plt.rcParams["font.size"] = 12
     #  plt.rc("text.latex", preamble=r"\usepackage{underscore}")
 
-    fig, axes = pu.get_fig_and_axis(
+    fig, axes = pu.get_fig_and_axes(
         len(optlist.fitsfile),
         optlist.layout,
         optlist.overlay,

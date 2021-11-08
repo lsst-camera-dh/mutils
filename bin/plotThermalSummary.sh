@@ -50,9 +50,9 @@ regexes+=('focal-plane/R../Reb[1W]/S.1/Temp')
 regexes+=('focal-plane/R../Reb[02W]/HtrW')
 regexes+=('focal-plane/R../Reb1/Temp2$')
 regexes+=('focal-plane/R../Reb1/(Temp6$|Aspic./Temp.)')
-regexes+=('^thermal/(Cryo_Temp/CYP-RTD-.[24]$|Grid_Temp/GFX-RTD-0[13]$|Grid_Temp/GRD-RTD-0.$)')
-regexes+=('^thermal/Cold_Temp/CLP-RTD-..')
-regexes+=('^thermal/Grid_Temp/GFX-RTD-0[24]')
+regexes+=('^thermal/Cryo_Temp/CYP-RTD-..$')
+regexes+=('^thermal/Cold_Temp/CLP-RTD-..$')
+regexes+=('^thermal/Grid_Temp/G(FX|RD)-RTD-..')
 regexes+=('^thermal/Trim_Htrs/C.*Total_P')
 
 #badrtds:
