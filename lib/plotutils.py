@@ -41,7 +41,7 @@ def update_rcparams():
         plt.rcParams.update({"figure.dpi": 166})
 
 
-def get_fig_and_axis(
+def get_fig_and_axes(
     nax,
     layout="landscape",
     overlay=False,

@@ -233,7 +233,7 @@ def imxtalk():
             if optlist.plot:
                 plt.style.use(optlist.style)
                 pu.update_rcparams()
-                fig, axes = pu.get_fig_and_axis(
+                fig, axes = pu.get_fig_and_axes(
                     len(rspids),
                     optlist.layout,
                     False,

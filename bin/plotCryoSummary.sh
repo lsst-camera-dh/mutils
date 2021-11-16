@@ -65,8 +65,8 @@ fi
 #hex/Cryo1/ReturnPrs
 #hex/Cryo1/VaporPrs
 
-cryos='[1356]'
-#cryos='[12356]'
+#cryos='[1356]'
+cryos='[13456]'
 declare -a regexes
 regexes+=('^refrig/Cryo'${cryos}'/CompPower')
 regexes+=('^refrig/Cryo'${cryos}'/SuctionPrs')

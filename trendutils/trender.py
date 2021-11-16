@@ -245,7 +245,10 @@ def parse_args():
     # General options
     #
     parser.add_argument(
-        "--site", required=False, choices=sites_list, help="Specify trending site",
+        "--site",
+        required=False,
+        choices=sites_list,
+        help="Specify trending site",
     )
     parser.add_argument(
         "--debug", action="store_true", help="Print additional debugging info"
@@ -783,7 +786,12 @@ def trender():
                 grad = rmean = rmedian = rstd = 0
             try:
                 print(
-                    "{:>6g} {:>8.4g} {:>8.4g} {:>8.4g} ".format(nelem, avg, med, std,),
+                    "{:>6g} {:>8.4g} {:>8.4g} {:>8.4g} ".format(
+                        nelem,
+                        avg,
+                        med,
+                        std,
+                    ),
                     end="",
                 )
                 print("{:>8.4g} {:>8.4g} ".format(npmin, npmax), end="")
@@ -892,7 +900,7 @@ def trender():
         else:
             sharex = optlist.sharex
 
-        fig, axes = pu.get_fig_and_axis(
+        fig, axes = pu.get_fig_and_axes(
             nax,
             optlist.layout,
             optlist.overlay,
