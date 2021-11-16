@@ -23,7 +23,7 @@ def update_rcparams():
     Account for v2.x vs. v3.x differences
     """
     vers = mpl.__version__
-    if vers.startswith("3.1"):  # botched hdpi stuff
+    if vers.startswith("3"):  # botched hdpi stuff
         # update/override some critical parameters
         logging.debug("found matplotlib version %s", vers)
         plt.rcParams.update({"legend.handlelength": 0.6})

@@ -225,7 +225,7 @@ def imxtalk():
             logging.debug("np.shape(arr_x)= %s", np.shape(arr_x))
             if np.size(arr_x) < 1000:
                 logging.warning(
-                    "not enough source points to produce a coef: %d < 100",
+                    "not enough source points to produce a coef: %d < 1000",
                     np.size(arr_x),
                 )
                 continue
@@ -341,12 +341,12 @@ def imxtalk():
                 lrincpt = lr.intercept_
                 rscoef = ransac.estimator_.coef_[0]
                 rsincpt = ransac.estimator_.intercept_
-                print(f"binned lr.coef={lrcoef:>3g}")
+                print(f"binned lr.coef={lrcoef:>.2e}")
                 if optlist.intercept:
-                    print(f"binned lr.intercept={lrincpt:>.2f}")
-                print(f"binned ransac.estimator.coef={rscoef:>3g}")
+                    print(f"binned lr.intercept={lrincpt:>.1f}")
+                print(f"binned ransac.estimator.coef={rscoef:>.2e}")
                 if optlist.intercept:
-                    print(f"binned ransac.estimator.intercept={rsincpt:>.2f}")
+                    print(f"binned ransac.estimator.intercept={rsincpt:>.1f}")
 
                 # plotting
                 if optlist.plot:
@@ -388,14 +388,14 @@ def imxtalk():
                         line_y_ransac = ransac.predict(line_x)
                         lw = 2
                         if optlist.intercept:
-                            lbl = f"lr: {lrcoef:>.3g}*x + {lrincpt:>.3g}"
+                            lbl = f"lr: {lrcoef:>.2e}*x + {lrincpt:>.1g}"
                         else:
-                            lbl = f"lr: {lrcoef:>.3g}*x"
+                            lbl = f"lr: {lrcoef:>.2e}*x"
                         ax.plot(line_x, line_y, color="navy", linewidth=lw, label=lbl)
                         if optlist.intercept:
-                            lbl = f"ransac: {rscoef:>.3g}*x + {rsincpt:>.3g}"
+                            lbl = f"ransac: {rscoef:>.2e}*x + {rsincpt:>.1g}"
                         else:
-                            lbl = f"ransac: {rscoef:>.3g}*x"
+                            lbl = f"ransac: {rscoef:>.2e}*x"
                         ax.plot(
                             line_x,
                             line_y_ransac,

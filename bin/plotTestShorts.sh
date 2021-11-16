@@ -35,7 +35,7 @@ declare -a regexes
 regexes+=(${1}'/[DA].*I')      # digital & analog currents
 regexes+=(${1}'/[CO].*I')       # clocks and OD currents
 regexes+=(${1}'/[PSR].*[UL]$')  # clock levels
-regexes+=(${1}'/S../.*V$')      # bias voltages
+regexes+=(${1}'/S.*/.*V$')      # bias voltages
 
 if [ $duration"XXX" == "XXX" ] ; then
       duration=8s
@@ -43,6 +43,7 @@ fi
 
 if [ $waitTime ] ; then
       sleep $duration
+      sleep 8
 fi
 
 sarg=
@@ -50,4 +51,11 @@ if [ $savePlot ] ; then
     sarg=" --save "$(echo -n $1 | sed 's?/?_?g' | sed 's?\^??' )"_TestShorts.png"
 fi
 
-trender.py --site localhost --lay 4x1 --out ${sarg} --start "${2}" --title "testCCDShorts:${1}" --overlayreg --plot --dur $duration --fmt 'o-' -- "${regexes[@]}"
+site=
+if [[ $HOSTNAME"XXX" =~ .*slac.stanford.edu"XXX" ]] ; then
+    site="slac"
+else
+    site="localhost"
+fi
+
+trender.py --site ${site} --lay 4x1 --out ${sarg} --start "${2}" --title "testCCDShorts:${1}" --overlayreg --plot --dur $duration --fmt 'o-' -- "${regexes[@]}"
