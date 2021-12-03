@@ -516,9 +516,9 @@ def convert_to_seconds(duration_str) -> int:
     elif re.match(r"[0-9]+h$", duration_str):
         seconds = 3600 * int(duration_str[:-1])
     elif re.match(r"[0-9]+d$", duration_str):
-        seconds = 84600 * int(duration_str[:-1])
+        seconds = 86400 * int(duration_str[:-1])
     elif re.match(r"[0-9]+w$", duration_str):
-        seconds = 7 * 84600 * int(duration_str[:-1])
+        seconds = 7 * 86400 * int(duration_str[:-1])
 
     return seconds
 

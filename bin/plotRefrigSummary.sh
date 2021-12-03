@@ -69,5 +69,5 @@ if [ $timebins ] ; then
       timebins='--timebins'
 fi
 
-trender.py ${st} ${sv} --dur ${duration} ${timebins} --title "Refrig Summary" --plot --layout 7x2 --outside --overlayregex -- "${regexes[@]}"
+trender.py ${st} ${sv} --dur ${duration} ${timebins} --title "Refrig Summary" --plot --layout 8x2 --outside --overlayregex -- "${regexes[@]}"
 

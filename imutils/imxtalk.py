@@ -448,10 +448,6 @@ def imxtalk():
     ncalls()  # track call count, acts like static variable)
 
 
-def get_xtalk_coefs(hdulist: fits.HDUList, srcids, rspids, thresh):
-    """ """
-
-
 def ncalls():
     """maintain a counter"""
     ncalls.counter += 1

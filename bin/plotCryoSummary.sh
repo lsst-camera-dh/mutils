@@ -11,6 +11,7 @@ function usage {
     -t (use time averaged data, good on long queries)
     -s saveFileName
     -d <duration>  [default is 10m]
+    -c cryos (regex eg [02], default is . for all)
 EOM
 exit 1
 }
@@ -18,11 +19,12 @@ exit 1
 #
 duration=
 savefile=
-while getopts "htd:s:" Option
+while getopts "htd:s:c:" Option
 do
   case $Option in
     h  ) usage;;
     d  ) duration=$OPTARG;;
+    c  ) cryos=$OPTARG;;
     t  ) timebins="yes";;
     s  ) savefile=$OPTARG;;
     *  ) ${ECHO} "Unimplemented option chosen.";;   # Default.
@@ -65,13 +67,15 @@ fi
 #hex/Cryo1/ReturnPrs
 #hex/Cryo1/VaporPrs
 
-#cryos='[1356]'
-cryos='[13456]'
+if [ $cryos"XXX" == "XXX" ] ; then
+      cryos='.'
+fi
+
 declare -a regexes
 regexes+=('^refrig/Cryo'${cryos}'/CompPower')
 regexes+=('^refrig/Cryo'${cryos}'/SuctionPrs')
 regexes+=('^refrig/Cryo'${cryos}'/DischrgPrs')
-regexes+=('^hex/Cryo'${cryos}'/.*C3.*Tmp')
+regexes+=('^hex/Cryo'${cryos}'/.*C[34].*Tmp')
 regexes+=('^hex/Cryo'${cryos}'/EvapExitTmp')
 regexes+=('^hex/Cryo'${cryos}'/HexRtrnTmp')
 regexes+=('^(thermal/Cryo_Temp/CYP-RTD-(14|43|12|31)|fo.*/R2[0134]/Reb1/S11/Temp)')
