@@ -16,6 +16,8 @@ import numpy as np
 from astropy import stats
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdate
+from astropy.time import Time
+import astropy.units as au
 
 # put parent directory into sys.path
 bp = os.path.dirname(os.path.realpath(__file__)).split(os.sep)
@@ -207,18 +209,18 @@ def parse_args():
     #
     # Time interval specifications
     #
-    dgroup = parser.add_mutually_exclusive_group()
-    dgroup.add_argument(
+    igroup = parser.add_mutually_exclusive_group()
+    igroup.add_argument(
         "--interval",
         metavar=("tstart", "tstop"),
         nargs=2,
         action="append",
         help="Pair of date/time specifiers",
     )
-    dgroup.add_argument(
+    igroup.add_argument(
         "--start", metavar="tstart", help="Date/time specifier(s)", nargs="+"
     )
-    dgroup.add_argument(
+    igroup.add_argument(
         "--stop", metavar="tstop", help="Date/time specifier(s)", nargs="+"
     )
     parser.add_argument(
@@ -260,7 +262,15 @@ def parse_args():
     parser.add_argument("--e2v", action="store_true", help="limit to E2V devices")
     parser.add_argument("--science", action="store_true", help="limit to science rafts")
     parser.add_argument("--corner", action="store_true", help="limit to corner rafts")
-    parser.add_argument("--mjd", action="store_true", help="NA, use MJD time axis")
+    parser.add_argument(
+        "--mjd",
+        nargs="?",
+        default=argparse.SUPPRESS,
+        const=int(Time.now().mjd),
+        type=float,
+        metavar="offset (blank for none)",
+        help="use MJD time axis",
+    )
     parser.add_argument(
         "--forceupdate", action="store_true", help="Force update of cached channel file"
     )
@@ -273,6 +283,12 @@ def trender():
     """main logic"""
     # get command args and options
     optlist = parse_args()
+    try:
+        getattr(optlist, "mjd")
+        use_mjd = True
+    except AttributeError:
+        use_mjd = False
+
     mu.init_logging(optlist.debug)
     mu.init_warnings()
 
@@ -1037,16 +1053,29 @@ def trender():
                     # make label for legend
                     if not labeled:  # label first valid interval, save color
                         mlabel = "{}".format(chanspec[chid]["path"])
-                        line = ax.plot_date(
-                            mds, y, fmt, label=mlabel, tz=gettz(tsite["tz"])
-                        )
+                        if not use_mjd:
+                            line = ax.plot_date(
+                                mds, y, fmt, label=mlabel, tz=gettz(tsite["tz"])
+                            )
+                        else:
+                            mjd = Time(mds, format="plot_date").mjd - float(optlist.mjd)
+                            line = ax.plot(mjd, y, fmt, color=mcolor, label=None)
                         mcolor = line[0].get_color()
                         logging.debug("mcolor= %s", mcolor)
                         labeled = True
                     else:  # no label on later intervals, use saved color
-                        line = ax.plot_date(
-                            mds, y, fmt, color=mcolor, label=None, tz=gettz(tsite["tz"])
-                        )
+                        if not use_mjd:
+                            line = ax.plot_date(
+                                mds,
+                                y,
+                                fmt,
+                                color=mcolor,
+                                label=None,
+                                tz=gettz(tsite["tz"]),
+                            )
+                        else:
+                            mjd = Time(mds, format="plot_date").mjd - float(optlist.mjd)
+                            line = ax.plot(mjd, y, fmt, color=mcolor, label=None)
 
                     # set x,y-axis label format
                     if not ax.get_ylabel():
@@ -1064,9 +1093,14 @@ def trender():
                                 ).isoformat(timespec="seconds")
                             )
                             if optlist.timebins:
-                                xlabel_str = "{} [{} timebins]".format(
+                                xlabel_str = "{} [{} bins]".format(
                                     xlabel_str, optlist.timebins
                                 )
+                            if use_mjd:
+                                xlabel_str = "{}  MJD".format(xlabel_str)
+                                if optlist.mjd:
+                                    xlabel_str = "{}-{}".format(xlabel_str, optlist.mjd)
+
                             logging.debug("ax.set_xlabel(%s)", xlabel_str)
                             ax.set_xlabel(
                                 "{}".format(xlabel_str),
@@ -1077,9 +1111,10 @@ def trender():
 
                             ax.tick_params(axis="x", labelbottom=True)
                             # rotate the labels
-                            for xtick in ax.get_xticklabels():
-                                xtick.set_rotation(30)
-                                xtick.set_horizontalalignment("right")
+                            if not use_mjd:
+                                for xtick in ax.get_xticklabels():
+                                    xtick.set_rotation(30)
+                                    xtick.set_horizontalalignment("right")
                         else:
                             ax.tick_params(axis="x", labelbottom=False)
                 else:  # overlay start or stop
