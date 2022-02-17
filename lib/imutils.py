@@ -486,8 +486,10 @@ def eper_serial(hdu):
     dc_avg, dc_med, dc_std = stats.sigma_clipped_stats(dc_est_col)
     sig_avg, sig_med, sig_std = stats.sigma_clipped_stats(sig_est_col)
 
-    # if dc_avg > 0 and sig_avg > 0:
-    cti_est = dc_avg / sig_avg / ncols
+    if dc_avg > 0 and sig_avg > 0:
+        cti_est = dc_avg / sig_avg / ncols
+    else:
+        cti_est = -1.0
 
     if cti_est > -0.0001:
         eper = 1 - cti_est
@@ -1132,7 +1134,10 @@ def eper_parallel(hdu):
     sig_est = np.sum(sig_est_row[good_ind])
     logging.debug("dc_est = %.2f  sig_est = %.2f  nrows = %d", dc_est, sig_est, nrows)
 
-    cti_est = dc_est / sig_est / nrows
+    if sig_est > 0:
+        cti_est = dc_est / sig_est / nrows
+    else:
+        cti_est = -1.0
     logging.debug("cti_est = %.6f", cti_est)
 
     if cti_est > -0.0001:
