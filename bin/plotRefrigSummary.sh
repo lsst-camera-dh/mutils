@@ -10,6 +10,7 @@ function usage {
     -h (print help msg)
     -t (use time averaged data, good on long queries)
     -s saveFileName
+    -e (echo command)
     -d <duration>  [default is 10m]
 EOM
 exit 1
@@ -18,13 +19,14 @@ exit 1
 #
 duration=
 savefile=
-while getopts "htd:s:" Option
+while getopts "hted:s:" Option
 do
   case $Option in
     h  ) usage;;
     d  ) duration=$OPTARG;;
     t  ) timebins="yes";;
     s  ) savefile=$OPTARG;;
+    e  ) doecho="yes";;
     *  ) ${ECHO} "Unimplemented option chosen.";;   # Default.
   esac
 done
@@ -67,6 +69,11 @@ fi
 
 if [ $timebins ] ; then
       timebins='--timebins'
+fi
+
+if [ $doecho ] ; then
+    echo trender.py ${st} ${sv} --dur ${duration} ${timebins} --title "Refrig Summary" --plot --layout 8x2 --outside --overlayregex -- "${regexes[@]}"
+    exit
 fi
 
 trender.py ${st} ${sv} --dur ${duration} ${timebins} --title "Refrig Summary" --plot --layout 8x2 --outside --overlayregex -- "${regexes[@]}"
