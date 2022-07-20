@@ -42,31 +42,6 @@ else
     st="--stop ${1}"
 fi
 
-#channels:
-#refrig/Cryo1/FanSpeed
-#refrig/Cryo1/OilSepTmp
-#refrig/Cryo1/SurgeTankTmp
-#refrig/Cryo1/CompVoltage
-#refrig/Cryo1/CompCurrent
-#refrig/Cryo1/DischrgTmp_P
-#refrig/Cryo1/SuctionTmp_P
-#refrig/Cryo1/SuctionPrs
-#refrig/Cryo1/OilLevel
-#refrig/Cryo1/DischrgPrs
-#refrig/Cryo1/CompPower
-#refrig/Cryo1/DischrgTmp_M
-#refrig/Cryo1/PhaseSepTmp
-#refrig/Cryo1/SuctionTmp_M
-#refrig/Cryo1/WaterInTmp
-#refrig/Cryo1/WaterOutTmp
-#channels:
-#hex/Cryo1/C3ExitTmp
-#hex/Cryo1/C4ExitTmp
-#hex/Cryo1/LiquidPrs
-#hex/Cryo1/PreC4Tmp
-#hex/Cryo1/ReturnPrs
-#hex/Cryo1/VaporPrs
-
 if [ $cryos"XXX" == "XXX" ] ; then
       cryos='.'
 fi
@@ -94,5 +69,5 @@ if [ $timebins ] ; then
       timebins='--timebins'
 fi
 
-trender.py ${st} ${sv} --dur ${duration} ${timebins} --title "CryoRefrig Summary" --plot --layout 4x2 --outside --overlayregex -- "${regexes[@]}"
+trender.py ${st} ${sv}  --dur ${duration} ${timebins} --title "CryoRefrig Summary" --plot --outside --overlayregex -- "${regexes[@]}"
 

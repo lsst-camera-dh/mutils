@@ -52,7 +52,7 @@ def parse_args():
     )
     # processing options
     #
-    parser.add_argument("--ifile", nargs=1, type=str, help="output fits_image name")
+    parser.add_argument("--ifile", nargs=1, type=str, help="file w/list of inputs")
     parser.add_argument(
         "--result", nargs=1, required=True, type=str, help="output fits_image name"
     )
@@ -70,6 +70,9 @@ def parse_args():
         metavar="nsig",
         nargs="?",
         help="use sigmaclipped mean to combine images",
+    )
+    mgroup.add_argument(
+        "--stddev", action="store_true", help="use stddev to combine images"
     )
     mgroup.add_argument(
         "--rank",
@@ -220,6 +223,8 @@ def imcombine():
         if len(iimages) < 5:
             logging.warning("image count %d < 5, can only choose mean", len(iimages))
             sys.exit()
+    elif optlist.stddev:
+        method = ["stddev"]
     elif optlist.rank:
         method = ["rank", optlist.rank]
         if len(iimages) < 5:

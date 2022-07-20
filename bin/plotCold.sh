@@ -51,16 +51,16 @@ fi
 
 declare -a regexes
 regexes+=('thermal/Cold.*/CLP-RTD-.5')
-regexes+=('focal-plane/R[04]4/Reb[2GW]/Temp2')
+regexes+=('focal-plane/R.4/Reb[2G]/Temp2')
 regexes+=('thermal/Cold.*/CLP-RTD-.[23]')
 regexes+=('focal-plane/R[04][13]/Reb2/Temp2')
 regexes+=('thermal/Cold.*/CLP-RTD-.0')
-regexes+=('focal-plane/R[04]0/Reb[2GW]/Temp2')
+regexes+=('focal-plane/R.0/Reb[2G]/Temp2')
 regexes+=('hex/Cold1/(EvapExitTmp|PreExpnTmp|EvapSuperHeat)')
 regexes+=('hex/Cold2/(EvapExitTmp|PreExpnTmp|EvapSuperHeat)')
 regexes+=('^[hr].*/Cold./(Return|Suction)Prs$')
 regexes+=('^[hr].*/Cold./(Dis.*|Sup.*)Prs$')
-regexes+=('thermal/Trim_Htrs/ColdHtr[05]_P')
+regexes+=('thermal/Trim_Htrs/ColdHtr[035]_P')
 regexes+=('refrig/Cold./EEPRValvePosn')
 
 if [ $duration"XXX" == "XXX" ] ; then

@@ -1216,7 +1216,7 @@ def image_combine_hdu(
 ):
     """
     From a list of input images (as hdulists) and the id of one extension
-    return an ImageHDU.data object containing a pixel-by-pixel "average" of
+    return an ImageHDU.data object containing a pixel-by-pixel "combined value" of
     the stacked input images.  The processing varies according to the
     additional arguments as to median vs. average, bias subtraction etc.
 
@@ -1224,7 +1224,7 @@ def image_combine_hdu(
     ----------
     iimages: list of astropy.io.fits.HDUList objects
     hduid: index specifying a single hdu (present in all iimages) to process
-    method: [median], [average], [sigmaclip, sigmaval], [rank, percentile]
+    method: [median], [average], [std], [sigmaclip, sigmaval], [rank, percentile]
     region: (yslice, xslice) specifying ROI to process, full image if None
     bimage: fits.HDUList object with (bias) image to subtract
     sbias: param for subtract_bias() function (in this module)
@@ -1263,6 +1263,8 @@ def image_combine_hdu(
         hduo.data = np.mean(np.array(hdudata_list), axis=0)
     elif re.match(r"^med", method[0]):
         hduo.data = np.median(np.array(hdudata_list), axis=0)
+    elif re.match(r"^std", method[0]):
+        hduo.data = np.std(np.array(hdudata_list), axis=0)
     elif re.match(r"^sig", method[0]):  # this one is ugly
         hduo.data = np.nanmean(
             stats.sigma_clip(np.array(hdudata_list), method[1], axis=0, masked=False),
