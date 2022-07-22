@@ -75,6 +75,9 @@ def parse_args():
         "--stddev", action="store_true", help="use stddev to combine images"
     )
     mgroup.add_argument(
+        "--rstddev", action="store_true", help="use robust stddev to combine images"
+    )
+    mgroup.add_argument(
         "--rank",
         const=50,
         metavar="percentile",
@@ -225,6 +228,8 @@ def imcombine():
             sys.exit()
     elif optlist.stddev:
         method = ["stddev"]
+    elif optlist.rstddev:
+        method = ["rstddev"]
     elif optlist.rank:
         method = ["rank", optlist.rank]
         if len(iimages) < 5:

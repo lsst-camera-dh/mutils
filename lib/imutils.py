@@ -1229,7 +1229,7 @@ def image_combine_hdu(
     ----------
     iimages: list of astropy.io.fits.HDUList objects
     hduid: index specifying a single hdu (present in all iimages) to process
-    method: [median], [average], [std], [sigmaclip, sigmaval], [rank, percentile]
+    method: [median], [average], [std], [rstd], [sigmaclip, sigmaval], [rank, percentile]
     region: (yslice, xslice) specifying ROI to process, full image if None
     bimage: fits.HDUList object with (bias) image to subtract
     sbias: param for subtract_bias() function (in this module)
@@ -1270,6 +1270,11 @@ def image_combine_hdu(
         hduo.data = np.median(np.array(hdudata_list), axis=0)
     elif re.match(r"^std", method[0]):
         hduo.data = np.std(np.array(hdudata_list), axis=0)
+    elif re.match(r"^rstd", method[0]):
+        hduo.data = np.nanstd(
+            stats.sigma_clip(np.array(hdudata_list), 3.0, axis=0, masked=False),
+            axis=0,
+        )
     elif re.match(r"^sig", method[0]):  # this one is ugly
         hduo.data = np.nanmean(
             stats.sigma_clip(np.array(hdudata_list), method[1], axis=0, masked=False),
@@ -1407,7 +1412,7 @@ def auto_biastype(hdulist: fits.HDUList) -> tuple:
     except KeyError:
         raise KeyError("Missing LSST_NUM keyword required for LSST Camera Image?")
     if re.match(r"E2V", lsstnum):
-        sbias_str = "byrowe2v"
+        sbias_str = "byrow"
         pbias_str = "bycolfilter"
         logging.debug("auto_biastype is E2V")
     elif re.match(r"ITL", lsstnum):
