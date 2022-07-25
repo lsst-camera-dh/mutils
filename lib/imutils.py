@@ -1268,16 +1268,20 @@ def image_combine_hdu(
         hduo.data = np.mean(np.array(hdudata_list), axis=0)
     elif re.match(r"^med", method[0]):
         hduo.data = np.median(np.array(hdudata_list), axis=0)
+    elif re.match(r"^madstd", method[0]):
+        hduo.data = stats.mad_std(np.array(hdudata_list), axis=0)
     elif re.match(r"^std", method[0]):
         hduo.data = np.std(np.array(hdudata_list), axis=0)
     elif re.match(r"^rstd", method[0]):
+        logging.debug(f"calling stats.sigma_clip(np.array(hdudata_list), float({method[1]}), axis=0, masked=False)")
         hduo.data = np.nanstd(
-            stats.sigma_clip(np.array(hdudata_list), 3.0, axis=0, masked=False),
+            stats.sigma_clip(np.array(hdudata_list), float(method[1]), axis=0, masked=False),
             axis=0,
         )
     elif re.match(r"^sig", method[0]):  # this one is ugly
+        logging.debug(f"calling stats.sigma_clip(np.array(hdudata_list), float({method[1]}), axis=0, masked=False)")
         hduo.data = np.nanmean(
-            stats.sigma_clip(np.array(hdudata_list), method[1], axis=0, masked=False),
+            stats.sigma_clip(np.array(hdudata_list), float(method[1]), axis=0, masked=False),
             axis=0,
         )
     elif re.match(r"^ran", method[0]):

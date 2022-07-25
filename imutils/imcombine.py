@@ -72,10 +72,17 @@ def parse_args():
         help="use sigmaclipped mean to combine images",
     )
     mgroup.add_argument(
+        "--madstd", action="store_true", help="use astropy.stat.mad_std to combine images"
+    )
+    mgroup.add_argument(
         "--stddev", action="store_true", help="use stddev to combine images"
     )
     mgroup.add_argument(
-        "--rstddev", action="store_true", help="use robust stddev to combine images"
+        "--rstddev",
+        const=3.0,
+        metavar="nsig",
+        nargs="?",
+        help="use stddev of sigmaclipped data to combine images",
     )
     mgroup.add_argument(
         "--rank",
@@ -226,10 +233,12 @@ def imcombine():
         if len(iimages) < 5:
             logging.warning("image count %d < 5, can only choose mean", len(iimages))
             sys.exit()
+    elif optlist.madstd:
+        method = ["madstd"]
     elif optlist.stddev:
         method = ["stddev"]
     elif optlist.rstddev:
-        method = ["rstddev"]
+        method = ["rstddev", optlist.rstddev]
     elif optlist.rank:
         method = ["rank", optlist.rank]
         if len(iimages) < 5:
