@@ -48,11 +48,11 @@ def parse_args():
     )
     # positional args
     parser.add_argument(
-        "fitsfile", nargs="+", metavar="file", help="input fits file(s)"
+        "fitsfile", nargs="*", metavar="file", help="input fits file(s)"
     )
     # processing options
     #
-    parser.add_argument("--ifile", nargs=1, type=str, help="file w/list of inputs")
+    parser.add_argument("--ifile", nargs=+, type=str, help="file w/list of inputs")
     parser.add_argument(
         "--result", nargs=1, required=True, type=str, help="output fits_image name"
     )
@@ -125,6 +125,7 @@ def parse_args():
             "byrowe2v",
             "byrowsmooth",
             "byrowsmoothe2v",
+            "none",
         ],
         help="perform bias estimate removal using serial overscan",
     )
@@ -132,7 +133,7 @@ def parse_args():
         "--pbias",
         nargs="?",
         const="bycol",
-        choices=["mean", "median", "bycol", "bycolfilter", "bycolsmooth"],
+        choices=["mean", "median", "bycol", "bycolfilter", "bycolsmooth", "none"],
         help="perform bias estimate removal using par overscan",
     )
     # define scaling region

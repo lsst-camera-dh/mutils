@@ -1239,6 +1239,12 @@ def image_combine_hdu(
     """
     hdudata_list = []
     hdu_scale = []
+    logging.debug(f"using sbias: {sbias}")
+    logging.debug(f"using pbias: {pbias}")
+    if re.match(r"^no", sbias):
+        sbias = None
+    if re.match(r"^no", pbias):
+        pbias = None
     for im in iimages:
         hdu = im[hduid].copy()
         if sbias or pbias:
