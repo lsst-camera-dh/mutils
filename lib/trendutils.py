@@ -29,7 +29,7 @@ default_req_timeout = 5  # used by requests.*
 chid_dict = dict()
 
 # set up known sites for CCS restful servers
-# atsccs1.cp.lsst.org has address 139.229.170.33
+# auxtel-mcm.cp.lsst.org has address 139.229.175.242
 # ccs-db01.cp.lsst.org has address 139.229.174.2
 # lsst-mcm.slac.stanford.edu has address 134.79.209.38
 #
@@ -62,8 +62,8 @@ sites["lab1tunnel"]["tz"] = gettz().tzname(datetime.now())
 #
 sites["ats"] = dict()
 sites["ats"]["name"] = "ats"
-sites["ats"]["netregex"] = r"139\.229\.170\.[0-9]"
-sites["ats"]["server"] = "atsccs1.cp.lsst.org"
+sites["ats"]["netregex"] = r"139\.229\.175\.[0-9]"
+sites["ats"]["server"] = "auxtel-mcm.cp.lsst.org"
 sites["ats"]["port"] = 8080
 sites["ats"]["tz"] = "UTC"
 #

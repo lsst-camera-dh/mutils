@@ -96,16 +96,18 @@ def parse_args():
     )
     parser.add_argument(
         "--sbias",
-        nargs="?",
-        const="byrow",
-        choices=[
-            "mean",
-            "median",
-            "byrow",
-            "byrowe2v",
-            "byrowsmooth",
-            "byrowsmoothe2v",
-        ],
+        nargs="+",
+        # const="dbloscan",
+        # choices=[
+        #    "mean",
+        #    "median",
+        #    "byrow",
+        #    "byrowe2v",
+        #    "byrowsmooth",
+        #    "byrowsmoothe2v",
+        #    "colspec",
+        #    "dbloscan",
+        # ],
         help="perform bias estimate removal using serial overscan",
     )
     parser.add_argument(

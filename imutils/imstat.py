@@ -67,7 +67,7 @@ def parse_args():
     sgroup.add_argument(
         "--poverscan",
         action="store_true",
-        help="perform stats on parllel overscan region",
+        help="perform stats on parallel overscan region",
     )
     sgroup.add_argument(
         "--stats",

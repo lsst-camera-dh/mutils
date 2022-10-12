@@ -377,7 +377,7 @@ def subtract_bias(stype: str, ptype: str, hdu: fits.ImageHDU, bad_segs: list = N
 
     # serial overscan first pass
     if stype:
-        if stype in ("byrow", "byrowsmooth", "byrowe2v", "byrowsmoothe2v"):
+        if stype[0] in ("byrow", "byrowsmooth", "byrowe2v", "byrowsmoothe2v"):
             so_med = np.percentile(hdu.data[soscan][:, 5:], 50, axis=1)
             so_c14 = np.max(hdu.data[soscan][:, 1:4], axis=1)
             # clean up any crazy rows (eg overflow from hot column or saturation)
@@ -386,20 +386,26 @@ def subtract_bias(stype: str, ptype: str, hdu: fits.ImageHDU, bad_segs: list = N
             logging.debug("anomalous soscan rows: %s", so_med_bad_ind)
             if np.size(so_med_bad_ind):
                 so_med[so_med_bad_ind] = np.nan
-            if stype in ("byrowsmooth", "byrowsmoothe2v"):
+            if stype[0] in ("byrowsmooth", "byrowsmoothe2v"):
                 logging.debug("smoothing serial overscan with Gaussian1DKernel")
                 kernel = Gaussian1DKernel(1)
                 so_med = convolve(so_med, kernel, boundary="extend")
             # convert shape from (n,) to (n, 1)
-            so_med[np.isnan(so_med)] = 0.0  # bad rows are not corrected
+            # so_med[np.isnan(so_med)] = 0.0  # bad rows are not corrected
+            so_med[np.isnan(so_med)] = so_med_med  # bad rows use median of others
             logging.debug("mean serial overscan subtraction: %d", np.median(so_med))
             logging.debug("first 20 rows: \n%s", so_med[0:20])
             so_med = so_med.reshape(np.shape(so_med)[0], 1)
             hdu.data = hdu.data - so_med
-        elif stype == "mean":
+        elif stype[0] == "mean":
             hdu.data = hdu.data - np.mean(hdu.data[soscan][:, 5:])
-        elif stype == "median":
+        elif stype[0] == "median":
             hdu.data = hdu.data - np.median(hdu.data[soscan][:, 5:])
+        elif stype[0] == "dbloscan":
+            hdu.data = hdu.data - np.median(hdu.data[soscan][poscan[0], :])
+        elif stype[0] == "colspec":
+            logging.debug(f"hdu.data[:, {str_to_slices(stype[1])[0]}]")
+            hdu.data = hdu.data - np.median(hdu.data[:, str_to_slices(stype[1])[0]])
         else:
             logging.error("stype: %s not valid", stype)
             sys.exit(1)
@@ -1273,15 +1279,23 @@ def image_combine_hdu(
     elif re.match(r"^std", method[0]):
         hduo.data = np.std(np.array(hdudata_list), axis=0)
     elif re.match(r"^rstd", method[0]):
-        logging.debug(f"calling stats.sigma_clip(np.array(hdudata_list), float({method[1]}), axis=0, masked=False)")
+        logging.debug(
+            f"calling stats.sigma_clip(np.array(hdudata_list), float({method[1]}), axis=0, masked=False)"
+        )
         hduo.data = np.nanstd(
-            stats.sigma_clip(np.array(hdudata_list), float(method[1]), axis=0, masked=False),
+            stats.sigma_clip(
+                np.array(hdudata_list), float(method[1]), axis=0, masked=False
+            ),
             axis=0,
         )
     elif re.match(r"^sig", method[0]):  # this one is ugly
-        logging.debug(f"calling stats.sigma_clip(np.array(hdudata_list), float({method[1]}), axis=0, masked=False)")
+        logging.debug(
+            f"calling stats.sigma_clip(np.array(hdudata_list), float({method[1]}), axis=0, masked=False)"
+        )
         hduo.data = np.nanmean(
-            stats.sigma_clip(np.array(hdudata_list), float(method[1]), axis=0, masked=False),
+            stats.sigma_clip(
+                np.array(hdudata_list), float(method[1]), axis=0, masked=False
+            ),
             axis=0,
         )
     elif re.match(r"^ran", method[0]):
