@@ -377,7 +377,7 @@ def subtract_bias(stype: str, ptype: str, hdu: fits.ImageHDU, bad_segs: list = N
 
     # serial overscan first pass
     if stype:
-        if stype[0] in ("byrow", "byrowsmooth", "byrowe2v", "byrowsmoothe2v"):
+        if stype in ("byrow", "byrowsmooth", "byrowe2v", "byrowsmoothe2v"):
             so_med = np.percentile(hdu.data[soscan][:, 5:], 50, axis=1)
             so_c14 = np.max(hdu.data[soscan][:, 1:4], axis=1)
             # clean up any crazy rows (eg overflow from hot column or saturation)
@@ -386,7 +386,7 @@ def subtract_bias(stype: str, ptype: str, hdu: fits.ImageHDU, bad_segs: list = N
             logging.debug("anomalous soscan rows: %s", so_med_bad_ind)
             if np.size(so_med_bad_ind):
                 so_med[so_med_bad_ind] = np.nan
-            if stype[0] in ("byrowsmooth", "byrowsmoothe2v"):
+            if stype in ("byrowsmooth", "byrowsmoothe2v"):
                 logging.debug("smoothing serial overscan with Gaussian1DKernel")
                 kernel = Gaussian1DKernel(1)
                 so_med = convolve(so_med, kernel, boundary="extend")
@@ -397,15 +397,15 @@ def subtract_bias(stype: str, ptype: str, hdu: fits.ImageHDU, bad_segs: list = N
             logging.debug("first 20 rows: \n%s", so_med[0:20])
             so_med = so_med.reshape(np.shape(so_med)[0], 1)
             hdu.data = hdu.data - so_med
-        elif stype[0] == "mean":
+        elif stype == "mean":
             hdu.data = hdu.data - np.mean(hdu.data[soscan][:, 5:])
-        elif stype[0] == "median":
+        elif stype == "median":
             hdu.data = hdu.data - np.median(hdu.data[soscan][:, 5:])
-        elif stype[0] == "dbloscan":
+        elif stype == "dbloscan":
             hdu.data = hdu.data - np.median(hdu.data[soscan][poscan[0], :])
-        elif stype[0] == "colspec":
-            logging.debug(f"hdu.data[:, {str_to_slices(stype[1])[0]}]")
-            hdu.data = hdu.data - np.median(hdu.data[:, str_to_slices(stype[1])[0]])
+        #        elif stype[0] == "colspec":
+        #            logging.debug(f"hdu.data[:, {str_to_slices(stype[1])[0]}]")
+        #            hdu.data = hdu.data - np.median(hdu.data[:, str_to_slices(stype[1])[0]])
         else:
             logging.error("stype: %s not valid", stype)
             sys.exit(1)
