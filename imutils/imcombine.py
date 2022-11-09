@@ -52,7 +52,7 @@ def parse_args():
     )
     # processing options
     #
-    parser.add_argument("--ifile", nargs=+, type=str, help="file w/list of inputs")
+    parser.add_argument("--ifile", nargs="+", type=str, help="file w/list of inputs")
     parser.add_argument(
         "--result", nargs=1, required=True, type=str, help="output fits_image name"
     )
@@ -72,7 +72,9 @@ def parse_args():
         help="use sigmaclipped mean to combine images",
     )
     mgroup.add_argument(
-        "--madstd", action="store_true", help="use astropy.stat.mad_std to combine images"
+        "--madstd",
+        action="store_true",
+        help="use astropy.stat.mad_std to combine images",
     )
     mgroup.add_argument(
         "--stddev", action="store_true", help="use stddev to combine images"
@@ -112,27 +114,24 @@ def parse_args():
     parser.add_argument(
         "--bias",
         action="store_true",
-        help="auto bias estimate removal by CCD type (itl, e2v)",
+        help="auto bias estimate removal",
     )
     parser.add_argument(
         "--sbias",
         nargs="?",
-        const="byrow",
-        choices=[
-            "mean",
-            "median",
-            "byrow",
-            "byrowe2v",
-            "byrowsmooth",
-            "byrowsmoothe2v",
-            "none",
-        ],
-        help="perform bias estimate removal using serial overscan",
+        const="dbloscan",
+        metavar="method",
+        help=textwrap.dedent(
+            """\
+            bias estimate removal using method in:
+                {mean,median,byrow,byrowsmooth,[dbloscan],none}
+            """
+        ),
     )
     parser.add_argument(
         "--pbias",
         nargs="?",
-        const="bycol",
+        const="none",
         choices=["mean", "median", "bycol", "bycolfilter", "bycolsmooth", "none"],
         help="perform bias estimate removal using par overscan",
     )

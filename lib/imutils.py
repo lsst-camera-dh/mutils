@@ -363,7 +363,7 @@ def subtract_bias(stype: str, ptype: str, hdu: fits.ImageHDU, bad_segs: list = N
     Operates in-place on the Image.HDU parameter
 
     Choices are 'None', 'mean' 'median', 'by(row|col)', 'by(row|col)filter' and
-    'by(row|col)smooth' and 'byrowe2v,', 'byrowsmoothe2v'
+    'by(row|col)smooth' and 'byrowe2v,', 'byrowsmoothe2v', and stype='dbloscan'
 
     Bias estimates are calculated using DATASEC to infer the overscan regions.
 
@@ -401,11 +401,21 @@ def subtract_bias(stype: str, ptype: str, hdu: fits.ImageHDU, bad_segs: list = N
             hdu.data = hdu.data - np.mean(hdu.data[soscan][:, 5:])
         elif stype == "median":
             hdu.data = hdu.data - np.median(hdu.data[soscan][:, 5:])
-        elif stype == "dbloscan":
-            hdu.data = hdu.data - np.median(hdu.data[soscan][poscan[0], :])
+        # elif stype == "dbloscan":
+        elif re.match(r"^dbl", stype):
+            logging.debug(
+                "dbloscan = np.median(hdu.data[%d:, %d:])",
+                poscan[0].start,
+                soscan[1].start,
+            )
+            hdu.data = hdu.data - np.median(
+                hdu.data[poscan[0].start :, soscan[1].start :]
+            )
         #        elif stype[0] == "colspec":
         #            logging.debug(f"hdu.data[:, {str_to_slices(stype[1])[0]}]")
         #            hdu.data = hdu.data - np.median(hdu.data[:, str_to_slices(stype[1])[0]])
+        elif re.match(r"^no", stype):
+            pass
         else:
             logging.error("stype: %s not valid", stype)
             sys.exit(1)
@@ -414,7 +424,12 @@ def subtract_bias(stype: str, ptype: str, hdu: fits.ImageHDU, bad_segs: list = N
     if ptype:
         if ptype in ("bycol", "bycolfilter", "bycolsmooth"):
             if ptype == "bycol":
-                bias_row = np.percentile(hdu.data[poscan[0], :], pcnt, axis=0)
+                bias_row = np.percentile(hdu.data[poscan[0] :, :], pcnt, axis=0)
+                logging.debug(
+                    "bias_row = np.percentile(hdu.data[%d:, :], %.1f, axis=0)",
+                    poscan[0],
+                    pcnt,
+                )
             elif ptype in ("bycolfilter", "bycolsmooth"):
                 bias_row = get_bias_filtered_est_row(hdu, bad_segs)
                 if bias_row is None:
@@ -438,6 +453,8 @@ def subtract_bias(stype: str, ptype: str, hdu: fits.ImageHDU, bad_segs: list = N
             hdu.data = hdu.data - np.mean(hdu.data[poscan])
         elif ptype == "median":
             hdu.data = hdu.data - np.median(hdu.data[poscan])
+        elif re.match(r"^no", ptype):
+            pass
         else:
             logging.error("ptype: %s not valid", ptype)
             sys.exit(1)

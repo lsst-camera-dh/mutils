@@ -39,6 +39,7 @@ def update_rcparams():
         plt.rcParams.update({"legend.handlelength": 0.6})
         plt.rcParams.update({"lines.markersize": 2})
         plt.rcParams.update({"figure.dpi": 166})
+    logging.debug("using dpi %d", plt.rcParams["figure.dpi"])
 
 
 def get_fig_and_axes(
@@ -312,6 +313,109 @@ def line_plot(
     pax.yaxis.set_tick_params(labelsize="x-small")
 
 
+def hist_hdus(optdict: dict, hduids: list, hdulist: fits.HDUList, pax: plt.axes):
+    """
+    For each hdu specified by hduids in hdulist, make a
+    histogram on axis pax according the the input parameters
+
+    Parameters
+    ----------
+    optdict[]: Dictionary with options such as row, col regions, flags
+             etc.  Typically the dict version of an argparse namespace.
+        key       value
+        ---       -----
+        reg       region spec list
+        bias      True|False for auto: overrides sbias, pbias
+        sbias     mean|median|byrow|byrowsmooth
+        pbias     mean|median|bycol|bycolsmooth|lsste2v|lsstitl
+        htype     knuth|blocks|scott|freedman
+
+    hduids: List of hdu ids to work on
+    hdulist: A fits HDUList object containing the hdu's
+    pax: A matplotlib.axes.Axes instance to contain the line plots
+    """
+
+    if optdict["bias"]:  # auto set [sp]bias, overriding existing
+        try:
+            optdict["sbias"], optdict["pbias"] = iu.auto_biastype(hdulist)
+        except KeyError as kerr:
+            logging.error(kerr)
+            sys.exit(1)
+        except ValueError as verr:
+            logging.error(verr)
+            sys.exit(1)
+
+    # Process each HDU in the list "hduids"
+    for hduid in hduids:
+        hdu = hdulist[hduid]
+        try:
+            name = hdu.name
+        except IndexError as ierr:
+            logging.debug("IndexError: %s", ierr)
+            logging.debug("using name=%s", hduid)
+            name = "{}".format(hduid)
+
+        if optdict["sbias"] or optdict["pbias"]:
+            iu.subtract_bias(optdict["sbias"], optdict["pbias"], hdu)
+
+        (datasec, soscan, poscan) = iu.get_data_oscan_slices(hdu)
+
+        slices = []  # define regions to plot
+        for reg in optdict["regions"]:
+            logging.debug("processing %s", reg)
+            if re.match(r"data", reg):
+                slice_spec = datasec
+            elif re.match(r"soscan", reg):
+                slice_spec = soscan
+            elif re.match(r"poscan", reg):
+                slice_spec = poscan
+            elif re.match(r"doscan", reg):
+                slice_spec = (poscan[0], soscan[1])
+            else:
+                slice_spec = iu.parse_region(reg)
+            if slice_spec != (None, None):
+                slices.append(slice_spec)
+            else:
+                logging.error("skipping region %s", reg)
+        for slice_spec in slices:
+            logging.debug("calling hist_plot() %s[%s]", name, reg)
+            hist_plot(
+                slice_spec,
+                hdu.data,
+                optdict["bintype"],
+                optdict["histtype"],
+                name,
+                pax,
+            )
+
+
+def hist_plot(
+    slice_spec: tuple,
+    pix: np.ndarray,
+    bintype: str,
+    htype: str,
+    hduname: str,
+    pax: plt.axes,
+):
+    """
+    make a histogram on the axis given (pax) using the region etc.
+    """
+    logging.debug("slice_spec: %s", slice_spec)
+    logging.debug("shape(pix[slice_spec])=%s", np.shape(pix[slice_spec]))
+
+    #
+    logging.debug("something")
+    logging.debug("htype=%s", htype)
+
+    # slabel = "{}:[{}:{},{}:{}]".format(hduname, y[0], y[-1], x[0], x[-1])
+    logging.debug("calling stats.histogram(pix[%s], %s)", slice_spec, htype)
+    logging.debug("shape[pix]=%s", np.shape(pix))
+    counts, bins = stats.histogram(pix[slice_spec], bintype)
+    pax.hist(bins[:-1], bins, weights=counts, histtype=htype, linewidth=2.0)
+    pax.xaxis.set_tick_params(labelsize="small")
+    pax.yaxis.set_tick_params(labelsize="small")
+
+
 def mk_legend(placement: str, nrows: int, handles: list, labels: list, pax: plt.axes):
     """
     Generate the legend for the given axis according to options
@@ -342,7 +446,7 @@ def mk_legend(placement: str, nrows: int, handles: list, labels: list, pax: plt.
         falpha = None
         bb2a = (1, 1)
         if len(handles) >= trnc:
-            labels[trnc - 1] = "truncated:[{}--{}]".format(trnc - 1, len(handles))
+            labels[trnc - 1] = f"truncated:[{trnc - 1}--{len(handles)}]"
             labels, handles = labels[:trnc], handles[:trnc]
 
     if placement.startswith("heur"):

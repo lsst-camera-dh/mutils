@@ -92,22 +92,20 @@ def parse_args():
     parser.add_argument(
         "--sbias",
         nargs="?",
-        const="byrow",
-        choices=[
-            "mean",
-            "median",
-            "byrow",
-            "byrowe2v",
-            "byrowsmooth",
-            "byrowsmoothe2v",
-        ],
-        help="perform bias estimate removal using serial overscan",
+        const="dbloscan",
+        metavar="method",
+        help=textwrap.dedent(
+            """\
+            bias estimate removal using method in:
+                {mean,median,byrow,byrowsmooth,[dbloscan],none}
+            """
+        ),
     )
     parser.add_argument(
         "--pbias",
         nargs="?",
-        const="bycol",
-        choices=["mean", "median", "bycol", "bycolfilter", "bycolsmooth"],
+        const="bycolfilter",
+        choices=["mean", "median", "bycol", "bycolfilter", "bycolsmooth", "none"],
         help="perform bias estimate removal using par overscan",
     )
     parser.add_argument(
@@ -179,6 +177,7 @@ def imstat():
         hduids = iu.get_requested_image_hduids(
             hdulist, optlist.hduname, optlist.hduindex
         )
+        logging.debug("hduids=%s", hduids)
         if optlist.quicklook:
             quicklook(optlist, hduids, hdulist)
         else:

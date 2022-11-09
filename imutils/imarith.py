@@ -64,7 +64,7 @@ def parse_args():
         nargs="+",
         default=[],
         metavar="idn",
-        help="process HDU list by names",
+        help="process HDU list by names (abbr, regex ok)",
     )
     hgroup.add_argument(
         "--hduindex",
@@ -84,22 +84,20 @@ def parse_args():
     parser.add_argument(
         "--sbias",
         nargs="?",
-        const="byrow",
-        choices=[
-            "mean",
-            "median",
-            "byrow",
-            "byrowe2v",
-            "byrowsmooth",
-            "byrowsmoothe2v",
-        ],
-        help="perform bias estimate removal using serial overscan",
+        const="dbloscan",
+        metavar="method",
+        help=textwrap.dedent(
+            """\
+            bias estimate removal using method in:
+                {mean,median,byrow,byrowsmooth,[dbloscan],none}
+            """
+        ),
     )
     parser.add_argument(
         "--pbias",
         nargs="?",
-        const="bycol",
-        choices=["mean", "median", "bycol", "bycolfilter", "bycolsmooth"],
+        const="bycolfilter",
+        choices=["mean", "median", "bycol", "bycolfilter", "bycolsmooth", "none"],
         help="perform bias estimate removal using par overscan",
     )
     parser.add_argument(
@@ -108,11 +106,8 @@ def parse_args():
     return parser.parse_args()
 
 
-def imarith():
+def imarith(optlist):
     """main logic:"""
-    optlist = parse_args()
-    mu.init_logging(optlist.debug)
-    mu.init_warnings()
 
     # evaluate operands as either a filename, float, floats or error
     verify_args(optlist)
@@ -166,7 +161,7 @@ def imarith():
         # prepare the output hdu
         hduo = iu.init_image_hdu(hdu1, hdulisto, region)
 
-        # optionally subtract bias
+        # optionally subtract bias estimate
         if not optlist.sbias and not optlist.pbias:
             pass
         else:
@@ -273,7 +268,8 @@ def fdivision(arg1, arg2):
 
 
 def get_operand_type(operand):
-    """validates operand string is either a filename or float(str)
+    """
+    validates operand string is either a filename or float(str)
     returns 0=file, 1=number, 2=list, -1 otherwise
     """
     logging.debug("operand = {}".format(operand))
@@ -294,4 +290,8 @@ def get_operand_type(operand):
 
 
 if __name__ == "__main__":
-    imarith()
+    optlist = parse_args()
+    mu.init_logging(optlist.debug)
+    mu.init_warnings()
+    logging.debug(f"optlist={optlist}")
+    imarith(optlist)

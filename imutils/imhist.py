@@ -45,13 +45,7 @@ def parse_args():
         ),
         epilog=textwrap.dedent(
             """\
-        For each file a plot is produced yielding a grid of plots
-        unless the "--overlay" option is used which makes just one plot.
-        Within each file the specified hdu's (or all) are plotted for
-        each region given.
-        Each region is collapsed to 1-d by taking the mean, median or
-        clipped median on the other axis from the plot.  That is for a
-        row plot, each column of the region is mapped to a scalar.
+        Each region is  ...
         The "--sbias" and "--pbias" options provide bias subtraction.
         N.B. a "--" is often needed before the file(s) to indicate
         the end of options.
@@ -62,33 +56,37 @@ def parse_args():
         "fitsfile", nargs="+", metavar="file", help="input fits file(s)"
     )
     # row or column plot stuff affecting drawing the plots
-    pgroup = parser.add_mutually_exclusive_group()
-    pgroup.add_argument(
-        "--row",
+    parser.add_argument(
+        "--regions",
         nargs="*",
         metavar="2d-slicespec",
-        help='row plot, fmt: "rowspec, colspec"',
-    )
-    pgroup.add_argument(
-        "--col",
-        nargs="*",
-        metavar="2d-slicespec",
-        help='col plot, fmt: "rowspec, colspec"',
+        help='specify region, fmt: "rowspec, colspec" or datasec or [spd]oscan',
     )
     parser.add_argument(
-        "--ltype",
-        default="median",
-        choices=["median", "mean", "clipped", "timeorder"],
-        help="line type: 2d->1d method, default: %(default)s",
+        "--bintype",
+        default="knuth",
+        choices=["blocks", "knuth", "scott", "freedman"],
+        help=textwrap.dedent(
+            """\
+            same as bins arg to astropy.visualization.hist
+            """
+        ),
     )
     parser.add_argument(
-        "--offset",
-        nargs="?",
-        const="median",
-        help='offset choices: "mean", "median", "delta", or <value> (eg 27000)',
+        "--histtype",
+        default="bar",
+        choices=["bar", "barstacked", "step", "stepfilled"],
+        help=textwrap.dedent(
+            """\
+            type of histogram drawing
+            """
+        ),
     )
-    parser.add_argument("--overlay", action="store_true", help="all lines in one plot")
-
+    parser.add_argument(
+        "--overlay",
+        action="store_true",
+        help="overlay plots, need to remove",
+    )
     parser.add_argument(
         "--bias",
         action="store_true",
@@ -125,7 +123,7 @@ def parse_args():
         "--no-sharex",
         dest="sharex",
         action="store_false",
-        help="Don't share Y-axis range",
+        help="Don't share X-axis range",
     )
     xgroup.set_defaults(sharex=False)
     # y-axis matplotlib sharey exclusive
@@ -183,6 +181,12 @@ def parse_args():
     )
     pgroup.set_defaults(placement="heuristic")
     # fluff
+    parser.add_argument(
+        "--noplot",
+        action="store_true",
+        default=False,
+        help="don't show plot, debugging or saving from script",
+    )
     parser.add_argument("--saveplot", metavar="filename.<pdf|png|..>", help="save as")
     parser.add_argument(
         "--logy",
@@ -204,22 +208,6 @@ def parse_args():
         help="lower upper",
     )
     parser.add_argument(
-        "--smooth",
-        nargs="?",
-        type=int,
-        const=1,
-        metavar="ksize",
-        required=False,
-        help="smooth lines w/Gaussian1d kernel of size [1]",
-    )
-    parser.add_argument(
-        "--wcs",
-        nargs=1,
-        metavar="wcs-x",
-        required=False,
-        help="use wcs x transform",
-    )
-    parser.add_argument(
         "--layout", default="landscape", help='"landscape"|"portrait"|"nxm"'
     )
     parser.add_argument(
@@ -229,32 +217,24 @@ def parse_args():
         choices=style_list,
         help="default: %(default)s",
     )
-    parser.add_argument(
-        "--steps",
-        action="store_const",
-        required=False,
-        const="steps-mid",
-        default="default",
-        help="Step style: 'steps-mid' best for short lines",
-    )
     parser.add_argument("--dpi", type=int, help="set screen dpi")
     parser.add_argument(
         "--debug", action="store_true", help="print additional debugging messages"
     )
     parser.add_argument(
         "--nomemmap",
-        action="store_true",
-        default=False,
+        action="store_false",
+        default=True,
         help="use if memmap fails, default: %(default)s",
     )
     return parser.parse_args()
 
 
-def implot():
+def imhist():
     """main logic:"""
     optlist = parse_args()
     mu.init_logging(optlist.debug)
-    mu.init_warnings()
+    # mu.init_warnings()
     logging.debug("optlist: %s", optlist)
 
     # update/override some critical parameters
@@ -359,38 +339,15 @@ def implot():
             ax.set_yscale("symlog")
 
         # y label depends on offset type
-        if not optlist.offset:
-            ax.set_ylabel("signal", size="x-small")
-        elif optlist.offset == "mean":
-            ax.set_ylabel("signal - mean", size="x-small")
-        elif optlist.offset == "median":
-            ax.set_ylabel("signal - median", size="x-small")
-        elif optlist.offset == "delta":
-            ax.set_ylabel("signal - mean + 5*j*stdev, j=0,1,..", size="x-small")
-        else:
-            try:
-                offset_value = float(optlist.offset)
-            except ValueError as verr:
-                logging.error("ValueError: %s", verr)
-                logging.error("invalid --offset choice")
-                sys.exit(1)
+        ax.set_ylabel("counts", size="medium")
 
         # x label
         ax.grid(True)
-        if optlist.row is not None:
-            ax.set_xlabel("column", size="x-small")
-            if optlist.ltype == "timeorder":
-                ax.set_xlabel("time ordered series", size="x-small")
-        elif optlist.col is not None:
-            ax.set_xlabel("row", size="x-small")
-            if optlist.ltype == "timeorder":
-                ax.set_xlabel("time ordered series", size="x-small")
-        else:
-            logging.error("must have one of --row or --col")
-            sys.exit(1)
+
+        ax.set_xlabel("value (adus)", size="medium")
 
         # do the plotting
-        pu.plot_hdus(vars(optlist), hduids, hdulist, ax)
+        pu.hist_hdus(vars(optlist), hduids, hdulist, ax)
 
         #  done with file, close it
         hdulist.close()
@@ -426,8 +383,9 @@ def implot():
     if optlist.saveplot:
         fig.savefig(f"{optlist.saveplot}", dpi=600)
 
-    plt.show()
+    if not optlist.noplot:
+        plt.show()
 
 
 if __name__ == "__main__":
-    implot()
+    imhist()
