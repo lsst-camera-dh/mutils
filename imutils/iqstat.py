@@ -177,7 +177,7 @@ def quicklook(optlist, hduids, hdulist):
             iu.subtract_bias(optlist.sbias, optlist.pbias, hdu)
 
         # get datasec, serial overscan, parallel overscan as slices
-        (datasec, soscan, poscan) = iu.get_data_oscan_slices(hdu)
+        (datasec, soscan, poscan, doscan) = iu.get_data_oscan_slices(hdu)
         if not datasec or not soscan or not poscan:
             logging.error("Could not get DATASEC or overscan specs for %s", name)
             sys.exit(1)

@@ -70,6 +70,11 @@ def parse_args():
         help="perform stats on parallel overscan region",
     )
     sgroup.add_argument(
+        "--dbloscan",
+        action="store_true",
+        help="perform stats on double overscan region",
+    )
+    sgroup.add_argument(
         "--stats",
         nargs="+",
         metavar="stat",
@@ -196,13 +201,15 @@ def stats_proc(optlist, hduids, hdulist):
         else:
             iu.subtract_bias(optlist.sbias, optlist.pbias, hdu)
         slices = []
-        (datasec, soscan, poscan) = iu.get_data_oscan_slices(hdu)
+        (datasec, soscan, poscan, doscan) = iu.get_data_oscan_slices(hdu)
         if optlist.datasec:
             slices.append(datasec)
         if optlist.overscan:
             slices.append(soscan)
         if optlist.poverscan:
             slices.append(poscan)
+        if optlist.dbloscan:
+            slices.append(doscan)
         if optlist.region:
             for reg in optlist.region:  # if there are regions
                 logging.debug("processing %s", reg)
@@ -315,7 +322,7 @@ def quicklook(optlist, hduids, hdulist):
             iu.subtract_bias(optlist.sbias, optlist.pbias, hdu)
 
         # get datasec, serial overscan, parallel overscan as slices
-        (datasec, soscan, poscan) = iu.get_data_oscan_slices(hdu)
+        (datasec, soscan, poscan, doscan) = iu.get_data_oscan_slices(hdu)
         if not datasec or not soscan or not poscan:
             logging.error("Could not get DATASEC or overscan specs for %s", name)
             sys.exit(1)

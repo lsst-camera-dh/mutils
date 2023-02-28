@@ -132,7 +132,7 @@ def plot_hdus(optdict: dict, hduids: list, hdulist: fits.HDUList, pax: plt.axes)
         bias      True|False for auto: overrides sbias, pbias
         sbias     mean|median|byrow|byrowsmooth
         pbias     mean|median|bycol|bycolsmooth|lsste2v|lsstitl
-        ltype     median|mean|clipped|timeorder
+        ltype     median|mean|clipped|timeorder|madstd
         steps     default|steps-mid
         offset    mean|median|delta
         wcs       str
@@ -173,7 +173,7 @@ def plot_hdus(optdict: dict, hduids: list, hdulist: fits.HDUList, pax: plt.axes)
         else:
             iu.subtract_bias(optdict["sbias"], optdict["pbias"], hdu)
 
-        (datasec, soscan, poscan) = iu.get_data_oscan_slices(hdu)
+        (datasec, soscan, poscan, doscan) = iu.get_data_oscan_slices(hdu)
         wcs = None
         if optdict["wcs"]:
             wcs = WCS(hdu.header, key=optdict["wcs"][0])
@@ -236,6 +236,8 @@ def line_plot(
         line1 = np.median(pix[slice_spec], axis=map_axis)
     elif map_type == "mean":
         line1 = np.mean(pix[slice_spec], axis=map_axis)
+    elif map_type == "madstd":
+        line1 = stats.mad_std(pix[slice_spec], axis=map_axis)
     elif map_type == "timeorder":
         line1 = pix[slice_spec].flatten("C")  #
     elif map_type == "clipped":
@@ -358,7 +360,7 @@ def hist_hdus(optdict: dict, hduids: list, hdulist: fits.HDUList, pax: plt.axes)
         if optdict["sbias"] or optdict["pbias"]:
             iu.subtract_bias(optdict["sbias"], optdict["pbias"], hdu)
 
-        (datasec, soscan, poscan) = iu.get_data_oscan_slices(hdu)
+        (datasec, soscan, poscan, doscan) = iu.get_data_oscan_slices(hdu)
 
         slices = []  # define regions to plot
         for reg in optdict["regions"]:

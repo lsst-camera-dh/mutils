@@ -167,6 +167,7 @@ def imcombine():
         scaling = iu.parse_region(optlist.scaling)
 
     # build file list
+    ifiles = None
     if optlist.fitsfile:  # input files listed on cmd line
         ifiles = optlist.fitsfile
     elif optlist.ifile:  # input files listed in one or more files

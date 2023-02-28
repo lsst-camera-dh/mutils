@@ -45,17 +45,14 @@ def parse_args():
         ),
         epilog=textwrap.dedent(
             """\
-        For each file a plot is produced yielding a grid of plots
-        unless the "--overlay" option is used which makes just one plot.
-        Within each file the specified hdu's (or all) are plotted for
-        each region given.
-        Each region is collapsed to 1-d by taking the mean, median or
-        clipped median on the other axis from the plot.  That is for a
-        row plot, each column of the region is mapped to a scalar.
-        The "--sbias" and "--pbias" options provide bias subtraction.
-        N.B. a "--" is often needed before the file(s) to indicate
-        the end of options.
-                                """
+        For each file a plot is produced yielding a grid of plots unless the "--overlay"
+        option is used which makes just one plot.  Within each file the specified
+        hdu's (or all) are plotted for each region given.  Each region is collapsed
+        to 1-d by taking the mean, median, clipped median, timeordered, madstd on
+        the other axis from the plot.  That is for a row plot, each column of the
+        region is mapped to a scalar.  The "--sbias" and "--pbias" options provide
+        bias subtraction.  N.B. a "--" is often needed before the file(s) to
+        indicate the end of options.  """
         ),
     )
     parser.add_argument(
@@ -78,7 +75,7 @@ def parse_args():
     parser.add_argument(
         "--ltype",
         default="median",
-        choices=["median", "mean", "clipped", "timeorder"],
+        choices=["median", "mean", "clipped", "timeorder", "madstd"],
         help="line type: 2d->1d method, default: %(default)s",
     )
     parser.add_argument(

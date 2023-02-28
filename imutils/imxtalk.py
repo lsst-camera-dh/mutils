@@ -190,18 +190,18 @@ def imxtalk():
         max_rn = 7.0
         pcnt = 20
         lsst_num = hdulist[0].header.get("LSST_NUM")
-        # get_xtalk_coefs(hdulist, srcids, rspids, optlist.threshold)
-        for srcid in srcids:
+
+        for srcid in srcids:  # loop over sources
             hdu_s = hdulist[srcid]
             # subtract the bias estimate from the source array
             if lsst_num and re.match(r"^E2V-CCD250", lsst_num):
-                sbias = "byrowe2v"
+                sbias = "byrow"
             else:
                 sbias = "byrow"
             pbias = "bycolfilter"
             iu.subtract_bias(sbias, pbias, hdu_s, bad_segs)
             logging.info("hdu_s = %s", hdu_s.header["EXTNAME"])
-            (datasec_s, soscan_s, poscan_s) = iu.get_data_oscan_slices(hdu_s)
+            (datasec_s, soscan_s, poscan_s, doscan_s) = iu.get_data_oscan_slices(hdu_s)
             rn_est = min(np.std(hdu_s.data[poscan_s[0], soscan_s[1]]), max_rn)
             if optlist.threshold:
                 thresh = optlist.threshold
@@ -260,7 +260,9 @@ def imxtalk():
                         np.shape(hdu_r.data),
                     )
                     continue
-                (datasec_r, soscan_r, poscan_r) = iu.get_data_oscan_slices(hdu_r)
+                (datasec_r, soscan_r, poscan_r, doscan_r) = iu.get_data_oscan_slices(
+                    hdu_r
+                )
                 iu.subtract_bias(sbias, pbias, hdu_r, bad_segs)
                 # need to subtract background level estimate from hdu_s but it may
                 # have lots of structure so need somewhat careful estimate
