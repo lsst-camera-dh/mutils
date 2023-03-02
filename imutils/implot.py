@@ -75,7 +75,16 @@ def parse_args():
     parser.add_argument(
         "--ltype",
         default="median",
-        choices=["median", "mean", "clipped", "timeorder", "madstd"],
+        choices=[
+            "median",
+            "mean",
+            "clipped",
+            "timeorder",
+            "madstd",
+            "stddev",
+            "max",
+            "min",
+        ],
         help="line type: 2d->1d method, default: %(default)s",
     )
     parser.add_argument(

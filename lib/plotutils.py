@@ -70,10 +70,10 @@ def get_fig_and_axes(
             npcols = int(math.ceil(float(nax) / nprows))
 
         #
+        logging.debug("layout= %s", layout)
         if layout == "landscape":
             nprows, npcols = npcols, nprows
-
-        if re.match(r"([1-9]+)x([1-9]+)$", layout):
+        elif re.match(r"([1-9]+)x([1-9]+)$", layout):
             (rstr, cstr) = re.match(r"([1-9]+)x([1-9]+)$", layout).groups()
             nprows, npcols = int(rstr), int(cstr)
 
@@ -132,7 +132,7 @@ def plot_hdus(optdict: dict, hduids: list, hdulist: fits.HDUList, pax: plt.axes)
         bias      True|False for auto: overrides sbias, pbias
         sbias     mean|median|byrow|byrowsmooth
         pbias     mean|median|bycol|bycolsmooth|lsste2v|lsstitl
-        ltype     median|mean|clipped|timeorder|madstd
+        ltype     median|mean|clipped|timeorder|madstd|stddev|max|min
         steps     default|steps-mid
         offset    mean|median|delta
         wcs       str
@@ -188,6 +188,8 @@ def plot_hdus(optdict: dict, hduids: list, hdulist: fits.HDUList, pax: plt.axes)
                 slice_spec = soscan
             elif re.match(r"pover", reg):
                 slice_spec = poscan
+            elif re.match(r"dbl", reg):
+                slice_spec = doscan
             else:
                 slice_spec = iu.parse_region(reg)
             if slice_spec != (None, None):
@@ -238,6 +240,12 @@ def line_plot(
         line1 = np.mean(pix[slice_spec], axis=map_axis)
     elif map_type == "madstd":
         line1 = stats.mad_std(pix[slice_spec], axis=map_axis)
+    elif map_type == "stddev":
+        line1 = np.std(pix[slice_spec], axis=map_axis)
+    elif map_type == "max":
+        line1 = np.max(pix[slice_spec], axis=map_axis)
+    elif map_type == "min":
+        line1 = np.min(pix[slice_spec], axis=map_axis)
     elif map_type == "timeorder":
         line1 = pix[slice_spec].flatten("C")  #
     elif map_type == "clipped":
@@ -315,9 +323,9 @@ def line_plot(
     pax.yaxis.set_tick_params(labelsize="x-small")
 
 
-def hist_hdus(optdict: dict, hduids: list, hdulist: fits.HDUList, pax: plt.axes):
+def hist_hdu(optdict: dict, hduid: int, hdulist: fits.HDUList, pax: plt.axes):
     """
-    For each hdu specified by hduids in hdulist, make a
+    For the hdu specified by hduid in hdulist, make a
     histogram on axis pax according the the input parameters
 
     Parameters
@@ -330,9 +338,9 @@ def hist_hdus(optdict: dict, hduids: list, hdulist: fits.HDUList, pax: plt.axes)
         bias      True|False for auto: overrides sbias, pbias
         sbias     mean|median|byrow|byrowsmooth
         pbias     mean|median|bycol|bycolsmooth|lsste2v|lsstitl
-        htype     knuth|blocks|scott|freedman
+        htype     knuth|blocks|scott|freedman|<integer>
 
-    hduids: List of hdu ids to work on
+    hduid: hdu id to work on
     hdulist: A fits HDUList object containing the hdu's
     pax: A matplotlib.axes.Axes instance to contain the line plots
     """
@@ -347,54 +355,56 @@ def hist_hdus(optdict: dict, hduids: list, hdulist: fits.HDUList, pax: plt.axes)
             logging.error(verr)
             sys.exit(1)
 
-    # Process each HDU in the list "hduids"
-    for hduid in hduids:
-        hdu = hdulist[hduid]
-        try:
-            name = hdu.name
-        except IndexError as ierr:
-            logging.debug("IndexError: %s", ierr)
-            logging.debug("using name=%s", hduid)
-            name = "{}".format(hduid)
+    # Process HDU
+    hdu = hdulist[hduid]
+    logging.debug("using hdui=%s", hduid)
+    try:
+        name = hdu.name
+    except IndexError as ierr:
+        logging.error("IndexError: %s", ierr)
+        logging.error("using hduid=%s", hduid)
+        sys.exit(1)
 
-        if optdict["sbias"] or optdict["pbias"]:
-            iu.subtract_bias(optdict["sbias"], optdict["pbias"], hdu)
+    logging.debug("using name=%s", name)
 
-        (datasec, soscan, poscan, doscan) = iu.get_data_oscan_slices(hdu)
+    if optdict["sbias"] or optdict["pbias"]:
+        iu.subtract_bias(optdict["sbias"], optdict["pbias"], hdu)
 
-        slices = []  # define regions to plot
-        for reg in optdict["regions"]:
-            logging.debug("processing %s", reg)
-            if re.match(r"data", reg):
-                slice_spec = datasec
-            elif re.match(r"soscan", reg):
-                slice_spec = soscan
-            elif re.match(r"poscan", reg):
-                slice_spec = poscan
-            elif re.match(r"doscan", reg):
-                slice_spec = (poscan[0], soscan[1])
-            else:
-                slice_spec = iu.parse_region(reg)
-            if slice_spec != (None, None):
-                slices.append(slice_spec)
-            else:
-                logging.error("skipping region %s", reg)
-        for slice_spec in slices:
-            logging.debug("calling hist_plot() %s[%s]", name, reg)
-            hist_plot(
-                slice_spec,
-                hdu.data,
-                optdict["bintype"],
-                optdict["histtype"],
-                name,
-                pax,
-            )
+    (datasec, soscan, poscan, doscan) = iu.get_data_oscan_slices(hdu)
+
+    slices = []  # define regions to plot
+    for reg in optdict["regions"]:
+        logging.debug("processing %s", reg)
+        if re.match(r"data", reg):
+            slice_spec = datasec
+        elif re.match(r"soscan", reg):
+            slice_spec = soscan
+        elif re.match(r"^poscan", reg):
+            slice_spec = poscan
+        elif re.match(r"^doscan", reg):
+            slice_spec = (poscan[0], soscan[1])
+        else:
+            slice_spec = iu.parse_region(reg)
+        if slice_spec != (None, None):
+            slices.append(slice_spec)
+        else:
+            logging.error("skipping region %s", reg)
+    for slice_spec in slices:
+        logging.debug("calling hist_plot() %s[%s]", name, reg)
+        hist_plot(
+            slice_spec,
+            hdu.data,
+            optdict["bins"],
+            optdict["histtype"],
+            name,
+            pax,
+        )
 
 
 def hist_plot(
     slice_spec: tuple,
     pix: np.ndarray,
-    bintype: str,
+    binstr: str,
     htype: str,
     hduname: str,
     pax: plt.axes,
@@ -406,14 +416,23 @@ def hist_plot(
     logging.debug("shape(pix[slice_spec])=%s", np.shape(pix[slice_spec]))
 
     #
-    logging.debug("something")
     logging.debug("htype=%s", htype)
 
-    # slabel = "{}:[{}:{},{}:{}]".format(hduname, y[0], y[-1], x[0], x[-1])
+    y0 = slice_spec[0].start
+    y1 = slice_spec[0].stop
+    x0 = slice_spec[1].start
+    x1 = slice_spec[1].stop
+    slabel = f"'{y0}:{y1},{x0}:{x1}'"
+    logging.debug("hduname=%s", hduname)
     logging.debug("calling stats.histogram(pix[%s], %s)", slice_spec, htype)
     logging.debug("shape[pix]=%s", np.shape(pix))
-    counts, bins = stats.histogram(pix[slice_spec], bintype)
-    pax.hist(bins[:-1], bins, weights=counts, histtype=htype, linewidth=2.0)
+    try:
+        counts, bins = stats.histogram(pix[slice_spec], int(binstr))
+    except ValueError:
+        counts, bins = stats.histogram(pix[slice_spec], binstr)
+    pax.hist(
+        bins[:-1], bins, weights=counts, histtype=htype, linewidth=2.0, label=slabel
+    )
     pax.xaxis.set_tick_params(labelsize="small")
     pax.yaxis.set_tick_params(labelsize="small")
 

@@ -382,7 +382,7 @@ def subtract_bias(stype: str, ptype: str, hdu: fits.ImageHDU, bad_segs: list = N
 
     # serial overscan pass
     if stype:
-        if stype in ("byrow", "byrowsmooth"):
+        if stype in {"byrow", "byrowsmooth"}:
             so_med = np.percentile(hdu.data[soscan][:, 5:], 50, axis=1)
             so_c14 = np.max(hdu.data[soscan][:, 1:4], axis=1)
             # clean up any crazy rows (eg overflow from hot column, serial saturation)
@@ -392,7 +392,7 @@ def subtract_bias(stype: str, ptype: str, hdu: fits.ImageHDU, bad_segs: list = N
             if np.size(so_med_bad_ind):
                 so_med[so_med_bad_ind] = np.nan
             # optionally smooth the 1-d array to be subtracted
-            if stype in ("byrowsmooth"):
+            if stype == "byrowsmooth":
                 logging.debug("smoothing serial overscan with Gaussian1DKernel")
                 kernel = Gaussian1DKernel(1)
                 so_med = convolve(so_med, kernel, boundary="extend")
@@ -426,7 +426,7 @@ def subtract_bias(stype: str, ptype: str, hdu: fits.ImageHDU, bad_segs: list = N
 
     # parallel overscan pass
     if ptype:
-        if ptype in ("bycol", "bycolfilter", "bycolsmooth"):
+        if ptype in {"bycol", "bycolfilter", "bycolsmooth"}:
             if ptype == "bycol":
                 # bias_row = np.percentile(hdu.data[poscan[0], :], pcnt, axis=0)
                 ravg, bias_row, rstd = stats.sigma_clipped_stats(
@@ -437,7 +437,7 @@ def subtract_bias(stype: str, ptype: str, hdu: fits.ImageHDU, bad_segs: list = N
                     poscan[0].start,
                 )
                 # "bias_row = np.percentile(hdu.data[%d:, :], %.1f, axis=0)",
-            elif ptype in ("bycolfilter", "bycolsmooth"):
+            elif ptype in {"bycolfilter", "bycolsmooth"}:
                 bias_row = get_bias_filtered_est_row(hdu, bad_segs)
                 if bias_row is None:
                     logging.warning(
