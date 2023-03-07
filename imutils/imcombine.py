@@ -131,7 +131,7 @@ def parse_args():
     parser.add_argument(
         "--pbias",
         nargs="?",
-        const="none",
+        default="none",
         choices=["mean", "median", "bycol", "bycolfilter", "bycolsmooth", "none"],
         help="perform bias estimate removal using par overscan",
     )
