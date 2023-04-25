@@ -76,6 +76,9 @@ def get_fig_and_axes(
         elif re.match(r"([1-9]+)x([1-9]+)$", layout):
             (rstr, cstr) = re.match(r"([1-9]+)x([1-9]+)$", layout).groups()
             nprows, npcols = int(rstr), int(cstr)
+            if nprows * npcols < nax:
+                logging.error("layout parameter %s too small for %d axes", layout, nax)
+                sys.exit(1)
 
     logging.debug(
         "subplots layout for nax=%s is nprows=%s x npcols=%s", nax, nprows, npcols
@@ -163,6 +166,7 @@ def plot_hdus(optdict: dict, hduids: list, hdulist: fits.HDUList, pax: plt.axes)
         hdu = hdulist[hduid]
         try:
             name = hdu.name
+            name = re.sub(r"^[^0-9]*([0-9]*)$", r"C\1", name)  # --> Cij
         except IndexError as ierr:
             logging.debug("IndexError: %s", ierr)
             logging.debug("using name=%s", hduid)
@@ -317,7 +321,8 @@ def line_plot(
         kernel = Gaussian1DKernel(smooth)
         line1 = convolve(line1, kernel, boundary="extend")
 
-    slabel = "{}:[{}:{},{}:{}]".format(hduname, y[0], y[-1], x[0], x[-1])
+    # slabel = "{}:[{}:{},{}:{}]".format(hduname, y[0], y[-1], x[0], x[-1])
+    slabel = f"[{y[0]}:{y[-1]}:{x[0]}:{x[-1]}]"
     pax.plot(s, line1, drawstyle="{}".format(steps), label=slabel)
     pax.xaxis.set_tick_params(labelsize="x-small")
     pax.yaxis.set_tick_params(labelsize="x-small")

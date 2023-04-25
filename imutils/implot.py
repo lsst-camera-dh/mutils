@@ -378,7 +378,7 @@ def implot():
                 offset_value = float(optlist.offset)
             except ValueError as verr:
                 logging.error("ValueError: %s", verr)
-                logging.error("invalid --offset choice")
+                logging.error("invalid --offset choice: %s", optlist.offset)
                 sys.exit(1)
 
         # x label

@@ -45,57 +45,68 @@ def parse_args():
         ),
         epilog=textwrap.dedent(
             """\
-        Each region is  ...
-        The "--sbias" and "--pbias" options provide bias subtraction.
-        N.B. a "--" is often needed before the file(s) to indicate
-        the end of options.
-                                """
+        For each file a plot is produced yielding a grid of plots unless the "--overlay"
+        option is used which makes just one plot.  Within each file the specified
+        hdu's (or all) are plotted for each region given.  Each region is collapsed
+        to 1-d by taking the mean, median, clipped median, timeordered, madstd on
+        the other axis from the plot.  That is for a row plot, each column of the
+        region is mapped to a scalar.  The "--sbias" and "--pbias" options provide
+        bias subtraction.  N.B. a "--" is often needed before the file(s) to
+        indicate the end of options.  """
         ),
     )
     parser.add_argument(
         "fitsfile", nargs="+", metavar="file", help="input fits file(s)"
     )
     # row or column plot stuff affecting drawing the plots
-    parser.add_argument(
-        "--regions",
+    pgroup = parser.add_mutually_exclusive_group()
+    pgroup.add_argument(
+        "--row",
         nargs="*",
         metavar="2d-slicespec",
-        help='specify region, fmt: "rowspec, colspec" or datasec or [spd]oscan',
+        help='row plot, fmt: "rowspec, colspec"',
+    )
+    pgroup.add_argument(
+        "--col",
+        nargs="*",
+        metavar="2d-slicespec",
+        help='col plot, fmt: "rowspec, colspec"',
     )
     parser.add_argument(
-        "--bins",
-        default="blocks",
-        # choices=["blocks", "knuth", "scott", "freedman"],
-        help=textwrap.dedent(
-            """\
-            same as bins arg to astropy.visualization.hist
-            choices are "blocks|knuth|scott|freedman" or an integer
-            """
-        ),
+        "--ltype",
+        default="median",
+        choices=[
+            "median",
+            "mean",
+            "clipped",
+            "timeorder",
+            "madstd",
+            "stddev",
+            "max",
+            "min",
+        ],
+        help="line type: 2d->1d method, default: %(default)s",
     )
     parser.add_argument(
-        "--histtype",
-        default="bar",
-        choices=["bar", "barstacked", "step", "stepfilled"],
-        help=textwrap.dedent(
-            """\
-            type of histogram drawing
-            """
-        ),
+        "--offset",
+        nargs="?",
+        const="median",
+        help='offset choices: "mean", "median", "delta", or <value> (eg 27000)',
     )
-    parser.add_argument(
+    ogroup = parser.add_mutually_exclusive_group()
+    ogroup.add_argument(
         "--overlay",
         action="store_true",
         default=False,
         help="overlay all plots",
     )
-    parser.add_argument(
+    ogroup.add_argument(
         "--overlayhdus",
         action="store_true",
         default=False,
         help="overlay hdu plots",
     )
-    parser.add_argument(
+    ogroup.add_argument(
         "--overlayfiles",
         action="store_true",
         default=False,
@@ -121,7 +132,7 @@ def parse_args():
     parser.add_argument(
         "--pbias",
         nargs="?",
-        const="none",
+        const="bycol",
         choices=["mean", "median", "bycol", "bycolfilter", "bycolsmooth", "none"],
         help="perform bias estimate removal using par overscan",
     )
@@ -137,7 +148,7 @@ def parse_args():
         "--no-sharex",
         dest="sharex",
         action="store_false",
-        help="Don't share X-axis range",
+        help="Don't share Y-axis range",
     )
     xgroup.set_defaults(sharex=False)
     # y-axis matplotlib sharey exclusive
@@ -154,7 +165,7 @@ def parse_args():
         action="store_false",
         help="Don't share Y-axis range",
     )
-    ygroup.set_defaults(sharey=False)
+    ygroup.set_defaults(sharey=True)
     # hdu name|index exclusive
     hgroup = parser.add_mutually_exclusive_group()
     hgroup.add_argument(
@@ -195,12 +206,6 @@ def parse_args():
     )
     pgroup.set_defaults(placement="heuristic")
     # fluff
-    parser.add_argument(
-        "--noplot",
-        action="store_true",
-        default=False,
-        help="don't show plot, debugging or saving from script",
-    )
     parser.add_argument("--saveplot", metavar="filename.<pdf|png|..>", help="save as")
     parser.add_argument(
         "--logy",
@@ -222,6 +227,22 @@ def parse_args():
         help="lower upper",
     )
     parser.add_argument(
+        "--smooth",
+        nargs="?",
+        type=int,
+        const=1,
+        metavar="ksize",
+        required=False,
+        help="smooth lines w/Gaussian1d kernel of size [1]",
+    )
+    parser.add_argument(
+        "--wcs",
+        nargs=1,
+        metavar="wcs-x",
+        required=False,
+        help="use wcs x transform",
+    )
+    parser.add_argument(
         "--layout", default="landscape", help='"landscape"|"portrait"|"nxm"'
     )
     parser.add_argument(
@@ -231,24 +252,32 @@ def parse_args():
         choices=style_list,
         help="default: %(default)s",
     )
+    parser.add_argument(
+        "--steps",
+        action="store_const",
+        required=False,
+        const="steps-mid",
+        default="default",
+        help="Step style: 'steps-mid' best for short lines",
+    )
     parser.add_argument("--dpi", type=int, help="set screen dpi")
     parser.add_argument(
         "--debug", action="store_true", help="print additional debugging messages"
     )
     parser.add_argument(
         "--nomemmap",
-        action="store_false",
-        default=True,
+        action="store_true",
+        default=False,
         help="use if memmap fails, default: %(default)s",
     )
     return parser.parse_args()
 
 
-def imhist():
+def implot():
     """main logic:"""
     optlist = parse_args()
     mu.init_logging(optlist.debug)
-    # mu.init_warnings()
+    mu.init_warnings()
     logging.debug("optlist: %s", optlist)
 
     # update/override some critical parameters
@@ -258,9 +287,6 @@ def imhist():
     #  plt.rcParams["text.usetex"] = True
     #  plt.rcParams["font.size"] = 12
     #  plt.rc("text.latex", preamble=r"\usepackage{underscore}")
-
-    # findex = 0
-    # for ffile in optlist.fitsfile:
 
     # brute force to count number of hdu's that generate a plot
     # save info so only open files once
@@ -309,6 +335,7 @@ def imhist():
         sys.exit()
 
     # calc num axes and layout
+    layout = optlist.layout
     naxes = 1
     if optlist.overlay:
         naxes = 1
@@ -338,8 +365,7 @@ def imhist():
 
     pu.set_fig_title(optlist.title, optlist.fitsfile, fig)
 
-    # findex = 0
-    # for ffile in optlist.fitsfile:
+    # now loop over open files, hdus to make the plots
     for findex in range(0, nfiles):
         hdulist = hdulists[findex]
         hduids = hduidslists[findex]
@@ -356,8 +382,12 @@ def imhist():
 
             logging.debug("plotting on index %d of %d axes", aidx, len(np.ravel(axes)))
             # plot title is truncated filename (w/out path or .fit(s))
-            title_str = re.sub(r"^.*/(.*)$", r"\1", optlist.fitsfile[findex])
-            title_str = re.sub(r"^(.*)\.fits?(\.fz)*$", r"\1", title_str)
+            if optlist.overlay:
+                title_str = mu.mkglob(optlist.fitsfile, True)
+            else:
+                title_str = re.sub(r"^.*/(.*)$", r"\1", optlist.fitsfile[findex])
+                title_str = re.sub(r"^(.*)\.fits?(\.fz)*$", r"\1", title_str)
+
             if npcols < 3:
                 title_nchars = 44
                 title_fontsize = "x-small"
@@ -376,12 +406,18 @@ def imhist():
             hdulabel = f"{hdulist[hduids[hindex]].name}"  # current hduname
             hdulabel = re.sub(r"^[^0-9]*([0-9]*)$", r"C\1", hdulabel)  # --> Cij
             logging.debug("plotting %s:%s", title_str, hdulabel)
-            if optlist.overlay or optlist.overlayfiles:
-                if nfiles > 1:  # trunc'd filename in legend
-                    ax.plot([], [], " ", label=f"{title_str}:{hdulabel}")
-            elif nfiles == 1 and not optlist.title:
-                ax.set_title(f"{title_str}:{hdulabel}", fontsize=title_fontsize)
-                ax.plot([], [])  # skip the first color
+            if optlist.overlay:
+                ax.set_title(f"{title_str}", fontsize=title_fontsize)
+            elif optlist.overlayfiles:
+                ax.plot([], [], " ", label=f"{title_str}")
+                ax.annotate(
+                    hdulabel, (0.00, 0.03), xycoords="axes fraction", size="x-small"
+                )
+            elif optlist.overlayhdus:
+                ax.set_title(f"{title_str}", fontsize=title_fontsize)
+                ax.plot(
+                    [], [], " ", label=f"{mu.mkglob(optlist.fitsfile, True)}:{hdulabel}"
+                )
             else:
                 ax.set_title(f"{title_str}:{hdulabel}", fontsize=title_fontsize)
                 ax.plot([], [])  # skip the first color
@@ -399,15 +435,39 @@ def imhist():
                 logging.debug("set_yscale(symlog)")
                 ax.set_yscale("symlog")
 
-            # y label
-            ax.set_ylabel("counts", size=xy_fontsize)
+            # y label depends on offset type
+            if not optlist.offset:
+                ax.set_ylabel("signal", size=xy_fontsize)
+            elif optlist.offset == "mean":
+                ax.set_ylabel("signal - mean", size="x-small")
+            elif optlist.offset == "median":
+                ax.set_ylabel("signal - median", size="x-small")
+            elif optlist.offset == "delta":
+                ax.set_ylabel("signal - mean + 5*j*stdev, j=0,1,..", size="x-small")
+            else:
+                try:
+                    offset_value = float(optlist.offset)
+                except ValueError as verr:
+                    logging.error("ValueError: %s", verr)
+                    logging.error("invalid --offset choice")
+                    sys.exit(1)
 
             # x label
             ax.grid(True)
-            ax.set_xlabel("signal", size=xy_fontsize)
+            if optlist.row is not None:
+                ax.set_xlabel("column", size="x-small")
+                if optlist.ltype == "timeorder":
+                    ax.set_xlabel("time ordered series", size="x-small")
+            elif optlist.col is not None:
+                ax.set_xlabel("row", size="x-small")
+                if optlist.ltype == "timeorder":
+                    ax.set_xlabel("time ordered series", size="x-small")
+            else:
+                logging.error("must have one of --row or --col")
+                sys.exit(1)
 
             # do the plotting
-            pu.hist_hdu(vars(optlist), hduids[hindex], hdulist, ax)
+            pu.plot_hdus(vars(optlist), [hduids[hindex]], hdulist, ax)
 
         #  done with file, close it
         hdulist.close()
@@ -423,7 +483,7 @@ def imhist():
     # Get list of handles, labels from first plot
     ax = np.ravel(axes)[0]
     handles, labels = ax.get_legend_handles_labels()
-    if nfiles == 1 or optlist.overlay or optlist.overlayfiles:
+    if nfiles == 1 or optlist.overlay:
         ax = np.ravel(axes)[0]
     else:
         ax = np.ravel(axes)[-1]  # put legend in last slot
@@ -440,9 +500,8 @@ def imhist():
     if optlist.saveplot:
         fig.savefig(f"{optlist.saveplot}", dpi=600)
 
-    if not optlist.noplot:
-        plt.show()
+    plt.show()
 
 
 if __name__ == "__main__":
-    imhist()
+    implot()

@@ -42,6 +42,7 @@ fi
 
 declare -a regexes
 regexes[0]='focal-plane/R../Reb./S../Temp'
+regexes[1]='focal-plane/R../Reb[02W]/HtrW'
 #regexes[1]=${1}'/[DACO].*I$'  # board currents
 
 #badrtds:
