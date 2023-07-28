@@ -464,9 +464,11 @@ def update_trending_channels_xml(site, tstart=None, tstop=None):
         if tstart:
             xstart = tstart - 86400  # adjust to 24h earlier
             maxidle = int(time.time() - xstart)
+            logging.debug("using tstart: %d", tstart)
         else:
             maxidle = 3600 * 24 * 7  # give it a week
             xstart = int(time.time() - maxidle)
+        logging.debug("maxidle = %d", maxidle)
         xmlstring = get_all_channels(site, maxidle)
         root = etree.fromstring(xmlstring)
         #  attributes in channel_file are from datachannels tag

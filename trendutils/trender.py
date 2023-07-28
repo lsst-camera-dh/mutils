@@ -272,7 +272,7 @@ def parse_args():
         help="use MJD time axis",
     )
     parser.add_argument(
-        "--forceupdate", action="store_true", help="Force update of cached channel file"
+        "--forceupdate", action="store_true", help="Force update of current cached channel file"
     )
     #
     #

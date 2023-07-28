@@ -45,6 +45,7 @@ if [ $save ] ; then
 fi
 
 tail -5f $1 |\
-stdbuf -oL gawk '/Command\(TokenizedCommand\) powerCCDsOn/ {printf("%s %s -- powerCCDsOn\n",$9, $1);}' |\
-stdbuf -oL sed 's/\(^.*\): \[\(.*\)\].*\(powerCCDsOn\).*/\1 \2/' |\
-xargs -L1 ${cmd}  2>/dev/null
+stdbuf -oL gawk '/Command\(TokenizedCommand\) powerCCDsOn/ {printf("%s %s -- powerCCDsOn\n",$10, $1);}' |\
+stdbuf -oL sed 's/\(^.*\): \[\(.*\)\].*\(powerCCDsOn\).*/\1 \2/'
+#xargs -L1 ${cmd}
+#xargs -L1 ${cmd}  2>/dev/null

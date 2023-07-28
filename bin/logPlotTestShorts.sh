@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/bash -xv
 #
 #
 #-------------------------------------
@@ -44,7 +44,7 @@ if [ $save ] ; then
     cmd="plotTestShorts.sh -s -w"
 fi
 
-tail -f $1 |\
-stdbuf -oL gawk '/Command\(TokenizedCommand\) testCCDShorts/ {printf("%s %s -- testCCDShorts\n",$9, $1);}' |\
+tail -10f $1 |\
+stdbuf -oL gawk '/Command\(TokenizedCommand\) testCCDShorts/ {printf("%s %s -- testCCDShorts\n",$10, $1);}' |\
 stdbuf -oL sed 's/\(^.*\): \[\(.*\)\].*\(testCCDShorts\).*/\1 \2/' |\
 xargs -L1 ${cmd}  2>/dev/null
