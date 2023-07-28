@@ -10,9 +10,8 @@ function usage {
     -h (print help msg)
     -t (use time averaged data, good on long queries)
     -s saveFileName
+    -e (echo command)
     -d <duration>  [default is 10m]
-    -p <dpi>
-    -c cryos (regex eg [02], default is . for all)
 EOM
 exit 1
 }
@@ -20,15 +19,14 @@ exit 1
 #
 duration=
 savefile=
-while getopts "htd:s:c:p:" Option
+while getopts "hted:s:" Option
 do
   case $Option in
     h  ) usage;;
     d  ) duration=$OPTARG;;
-    c  ) cryos=$OPTARG;;
     t  ) timebins="yes";;
     s  ) savefile=$OPTARG;;
-    p  ) dpi=$OPTARG;;
+    e  ) doecho="yes";;
     *  ) ${ECHO} "Unimplemented option chosen.";;   # Default.
   esac
 done
@@ -44,20 +42,18 @@ else
     st="--stop ${1}"
 fi
 
-if [ $cryos"XXX" == "XXX" ] ; then
-      cryos='.'
-fi
-
 declare -a regexes
-regexes+=('^refrig/Cryo'${cryos}'/CompPower')
-regexes+=('^refrig/Cryo'${cryos}'/SuctionPrs')
-regexes+=('^refrig/Cryo'${cryos}'/DischrgPrs')
-regexes+=('^hex/Cryo'${cryos}'/.*C3.*Tmp')
-regexes+=('^hex/Cryo'${cryos}'/.*C4.*Tmp')
-regexes+=('^hex/Cryo'${cryos}'/EvapExitTmp')
-regexes+=('^hex/Cryo'${cryos}'/HexRtrnTmp')
-regexes+=('^(thermal/Cryo_Temp/CYP-RTD-(02|12|42|52)|fo.*/R[0134]2/Reb1/S11/Temp)')
-#regexes+=('^[tf].*[le]/.*(C.*Total_P$|RebTotalPower$)')
+#regexes+=('^[rh].*[xg]/Cold1/(.*Cooling$|.*Heat$)')
+#regexes+=('^[rh].*[xg]/Cold2/(.*Cooling$|.*Heat$)')
+regexes+=('utiltrunk/.*/FanSpeed')
+#regexes+=('utiltrunk/UT/(CoolPipe.*Temp|AverageTemp|Dome.*Temp)$')
+regexes+=('utiltrunk/UT/.*Temp.*')
+regexes+=('utiltrunk/Body/(Shtr|ChgrYMinus|A).*Vel$')
+regexes+=('utiltrunk/Body/(Shtr|ChgrYMinus|A).*Temp$')
+regexes+=('utiltrunk/MPC/((Sply|Retn).*Temp|AvgAirTempOut)')
+regexes+=('utiltrunk/(VPC/.*Temp$|Body/(L2.*|Average|VPP.*)Temp$)')
+regexes+=('utiltrunk/.PC/.*Press.*')
+regexes+=('utiltrunk/VPC/.*Vel')
 
 if [ $duration"XXX" == "XXX" ] ; then
       duration=10m
@@ -72,10 +68,10 @@ if [ $timebins ] ; then
       timebins='--timebins'
 fi
 
-dpis=
-if [ $dpi"XXX" != "XXX" ] ; then
-      dpis="--dpi ${dpi}"
+if [ $doecho ] ; then
+    echo trender.py ${st} ${sv} --dur ${duration} ${timebins} --title "Utiltrunk Thermal Summary" --plot --layout 4x2 --outside --overlayregex -- "${regexes[@]}"
+    exit
 fi
 
-trender.py ${st} ${sv} ${dpis} --dur ${duration} ${timebins} --title "CryoRefrig Summary" --plot --outside --overlayregex -- "${regexes[@]}"
+trender.py --dpi 140 ${st} ${sv} --dur ${duration} ${timebins} --title "Utiltrunk Thermal Summary" --plot --layout 4x2 --outside --overlayregex -- "${regexes[@]}"
 

@@ -696,7 +696,7 @@ def trender():
             unitstr = chanspec[chid]["units"]
             if np.size(chandata[chid]) == 0:
                 continue
-            for (tstamp, value) in chandata[chid]:
+            for tstamp, value in chandata[chid]:
                 try:
                     date = dt.datetime.fromtimestamp(
                         tstamp / 1000.0, gettz(tsite["tz"])
