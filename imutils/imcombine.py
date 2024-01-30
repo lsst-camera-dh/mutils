@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 """
 Combine images via averaging, median with various options.
 The main use is to generate medianed biases, darks, flats.

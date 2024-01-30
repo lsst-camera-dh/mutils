@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 """ trending snapshot report generator
 """
 # code to illustrate parsing of XML files

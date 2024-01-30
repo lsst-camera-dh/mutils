@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 """
 Calculate xtalk coefs for a single CCD with N segments
 in the form of a NxN matrix

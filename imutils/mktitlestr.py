@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 """
 Produce a glob-like pattern from a list of files to indicate
 the file set used (nominally to produce a title string)

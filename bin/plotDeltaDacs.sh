@@ -53,4 +53,4 @@ if [ $savePlot ] ; then
     sarg=" --save /tmp/"$(echo -n $1 | sed 's?/?_?g')"_loadDeltaDacs.png"
 fi
 
-trender.py --lay 3x1 --out ${sarg} --start "${2}" --title "loadDeltaDacs:${1}" --overlayreg --plot --dur ${duration} --fmt "o-" -- "${regexes[@]}"
+trender.py --dpi 160 --lay 3x1 --out ${sarg} --start "${2}" --title "loadDeltaDacs:${1}" --overlayreg --plot --dur ${duration} --fmt "o-" -- "${regexes[@]}"

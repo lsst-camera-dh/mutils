@@ -28,7 +28,7 @@ def update_rcparams():
         logging.debug("found matplotlib version %s", vers)
         plt.rcParams.update({"legend.handlelength": 0.6})
         plt.rcParams.update({"lines.markersize": 2})
-        plt.rcParams.update({"figure.dpi": 84})
+        plt.rcParams.update({"figure.dpi": 166})
     elif vers.startswith("2"):
         logging.debug("found matplotlib version %s", vers)
         plt.rcParams.update({"legend.handlelength": 0.6})

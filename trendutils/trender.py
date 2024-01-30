@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 """ trending data app: gets specified channels for requested time period
 """
 import re
@@ -42,12 +42,14 @@ def parse_args():
     """handle command line"""
     style_list = ["default"] + sorted(
         [
+            "bmh",
+            "classic",
+            "dark_background",
             "fast",
-            "ggplot",
-            "seaborn-poster",
-            "seaborn-notebook",
-            "seaborn-darkgrid",
             "fivethirtyeight",
+            "ggplot",
+            "grayscale",
+            "seaborn-v0_8",
         ]
     )
     sites_list = tu.get_sites()
@@ -122,6 +124,7 @@ def parse_args():
     parser.add_argument(
         "--plot", action="store_true", help="produce plots for each channel vs. time"
     )
+    parser.add_argument("--logy", action="store_true", help="log y-axis ")
     parser.add_argument("--saveplot", metavar="filename.<pdf|png|..>", help="save as")
     parser.add_argument(
         "--overlay",
@@ -200,7 +203,6 @@ def parse_args():
         const="auto",
         help="specify Title String or get auto-generated title",
     )
-    parser.add_argument("--style", default="ggplot", required=False, choices=style_list)
     parser.add_argument(
         "--layout", default="portrait", help='"landscape"|"portrait"|"nxm"'
     )
@@ -272,9 +274,12 @@ def parse_args():
         help="use MJD time axis",
     )
     parser.add_argument(
-        "--forceupdate", action="store_true", help="Force update of current cached channel file"
+        "--forceupdate",
+        action="store_true",
+        help="Force update of current cached channel file",
     )
     #
+    parser.add_argument("--style", default="ggplot", required=False, choices=style_list)
     #
     return parser.parse_args()
 
@@ -334,8 +339,8 @@ def trender():
         channel_file = None
 
     # construct the dict of input channels as {id:path} and store regexes as list
-    oflds = dict()  # dict to hold channel information
-    regexes = []
+    # oflds = dict()  # dict to hold channel information
+    # regexes = []
     oflds, regexes = tu.parse_channel_sources(optlist.channel_source, channel_file)
     if oflds:
         logging.debug("found %d channels", len(oflds))
@@ -389,12 +394,12 @@ def trender():
     if optlist.match:
         print("#--- Found matching channels:")
         for chid in oflds:
-            print("   id: {}  path: {}".format(chid, oflds[chid]))
+            print(f"   id: {chid}  path: {oflds[chid]}")
         sys.exit(0)
 
     logging.debug("Found matching channels:")
     for chid in oflds:
-        logging.debug("id= %5d  path= %s", int(chid), oflds[chid])
+        logging.debug("id= %6d  path= %s", int(chid), oflds[chid])
 
     #  Get the trending data either from local saved files or via
     #  trending db queries to the rest service
@@ -802,7 +807,7 @@ def trender():
                 grad = rmean = rmedian = rstd = 0
             try:
                 print(
-                    "{:>6g} {:>8.3g} {:>8.3g} {:>8.3g} ".format(
+                    "{:>6g} {:>8.4g} {:>8.4g} {:>8.4g} ".format(
                         nelem,
                         avg,
                         med,
@@ -814,7 +819,7 @@ def trender():
                 print("{:>11.3g} ".format(grad), end="")
                 if optlist.rstats:
                     print(
-                        "{:>8.3g} {:>8.3g} {:>8.3g}   ".format(rmean, rmedian, rstd),
+                        "{:>8.4g} {:>8.4g} {:>8.4g}   ".format(rmean, rmedian, rstd),
                         end="",
                     )
                 print("{:<{wt}s} {:>{wu}s}".format(path, unitstr, wt=40, wu=6))
@@ -1059,7 +1064,7 @@ def trender():
                             )
                         else:
                             mjd = Time(mds, format="plot_date").mjd - float(optlist.mjd)
-                            line = ax.plot(mjd, y, fmt, color=mcolor, label=None)
+                            line = ax.plot(mjd, y, fmt, color=mcolor, label=mlabel)
                         mcolor = line[0].get_color()
                         logging.debug("mcolor= %s", mcolor)
                         labeled = True
@@ -1080,7 +1085,14 @@ def trender():
                     # set x,y-axis label format
                     if not ax.get_ylabel():
                         ax.set_ylabel("{}".format(unit), size="small")
-                        ax.ticklabel_format(axis="y", style="sci", scilimits=(-3, 5))
+                        if not optlist.logy:
+                            ax.ticklabel_format(
+                                axis="y", style="sci", scilimits=(-3, 5)
+                            )
+                        else:
+                            logging.debug("set_yscale(symlog)")
+                            ax.set_yscale("symlog")
+
                     if not ax.get_xlabel():
                         # xlabel and tick labels on bottom plots
                         # only unless multiple intervals

@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 """
 Calculate statistical results for FITS images
 """
@@ -123,7 +123,7 @@ def parse_args():
         nargs="?",
         metavar="nrows",
         const="datasec",
-        help="add tearing metric:" " nrows|divisdero|datasec(default)",
+        help="add tearing metric:" " nrows|divisidero|datasec(default)",
     )
     parser.add_argument(
         "--dipoles", action="store_true", help="add dipole metric to quicklook output"

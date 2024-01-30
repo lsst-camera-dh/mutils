@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 """
 Create new copy of MEF fits file with ImageHDU order permuted
 according to command line options.

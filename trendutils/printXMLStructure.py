@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 """code to illustrate parsing/structure of XML files
 """
 import os

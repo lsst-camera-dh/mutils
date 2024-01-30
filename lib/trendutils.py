@@ -13,6 +13,8 @@ from datetime import datetime
 import requests
 from lxml import etree
 import dateutil.parser as dp
+
+from dateutil.parser import ParserError
 from dateutil.tz import gettz
 from dateutil.tz import tzutc
 from timezone_info import timezone_abbr
@@ -152,25 +154,48 @@ def get_all_channels(site: str, maxidle: int = -1):
     return resp.content
 
 
-def parse_datestr(datestr=None):
+def parse_datestr(datestr=None) -> float:
     """
     convert date string to time in seconds since the epoch
+    inputs: datestr string which may be a readable string representing a date/time
+            or a string representing integer|float timestamp
 
     Returns
     -------
     time in seconds since the epoch (1970) UTC
     """
+    ecnt = 0
+    elist = []
     if datestr:  # parse the date string almost any format
         logging.debug("parse_datestr(datestr=%s)", datestr)
         try:
             dt = dp.parse(datestr, tzinfos=timezone_abbr)
-        except ValueError as e:
-            logging.error("ValueError: %s", e)
-            logging.error("could not parse the datestring")
+            if dt.tzinfo is None:  # make it tz aware
+                dt = dt.astimezone(gettz())  # use local
+        except (ParserError, ValueError, TypeError, OverflowError) as e:
+            ecnt += 1
+            elist.append(str(e))
+            pass
+
+        if elist:  # failed to read string as a date/time
+            if datestr.isdecimal():  # seconds since 1970 UTC
+                try:
+                    dt = datetime.fromtimestamp(int(datestr), tzutc())
+                except OverflowError as e:
+                    ecnt += 1
+                    elist.append(str(e))
+            else:
+                try:
+                    dt = datetime.fromtimestamp(float(datestr), tzutc())
+                except (ValueError, OverflowError) as e:
+                    ecnt += 1
+                    elist.append(str(e))
+        if ecnt > 1:
+            logging.error("could not parse the datestring:%s", datestr)
+            logging.debug("parse attempt exceptions:\n  %s", "\n  ".join(elist))
+            # logging.debug("parse attempt exceptions: %s", "".join(str(elist))[1:-1])
             return None
-        if dt.tzinfo is None:  # make it tz aware
-            dt = dt.astimezone(gettz())  # assume local
-    else:
+    else:  # empty case
         dt = datetime.now(gettz())  # again local
 
     return (dt - datetime(1970, 1, 1, tzinfo=tzutc())).total_seconds()
@@ -706,7 +731,7 @@ def get_chanids_from_files(filelist: list) -> dict:
     Convert list of sources to channels to process
     The sources list
        inputs:
-           sources is a list of either filenames or regular expressions
+           sources is a list of filenames
        output:
            fields dict in form {id:path}
     """

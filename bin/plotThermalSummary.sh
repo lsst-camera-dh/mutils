@@ -108,4 +108,4 @@ if [ $echocmd ] ; then
     exit 0
 fi
 
-trender.py --dpi 160 ${verbose} ${sarg} ${st} --dur $duration ${timebins} --title "CryoStat Thermal Summary" --layout 4x2 --plot --outside --reject "${badCCDrtds[@]}" --overlayregex -- "${regexes[@]}"
+trender.py --dpi 320 ${verbose} ${sarg} ${st} --dur $duration ${timebins} --title "CryoStat Thermal Summary" --layout 4x2 --plot --outside --reject "${badCCDrtds[@]}" --overlayregex -- "${regexes[@]}"
