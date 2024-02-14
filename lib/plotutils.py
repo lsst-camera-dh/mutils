@@ -39,7 +39,7 @@ def update_rcparams():
         plt.rcParams.update({"legend.handlelength": 0.6})
         plt.rcParams.update({"lines.markersize": 2})
         plt.rcParams.update({"figure.dpi": 166})
-    logging.debug("using dpi %d", plt.rcParams["figure.dpi"])
+    # logging.debug("using dpi %d", plt.rcParams["figure.dpi"])
 
 
 def get_fig_and_axes(

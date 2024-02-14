@@ -13,11 +13,13 @@ from datetime import datetime
 import requests
 from lxml import etree
 import dateutil.parser as dp
+import numpy as np
 
 from dateutil.parser import ParserError
 from dateutil.tz import gettz
 from dateutil.tz import tzutc
 from timezone_info import timezone_abbr
+import lsst_camera_data
 
 # constants? for lack of a better term (default to slac)
 # trendnetre = r"134\.79\.[0-9]*\.[0-9]*"
@@ -377,7 +379,8 @@ def geturi(uri):
 
 
 def print_channel_content(xmlcontent, ssnames):
-    """Walk the tree, find items with subsystem and trending matches
+    """
+    Walk the tree, find items with subsystem and trending matches
     print out the path and trending-ID
     """
     root = etree.fromstring(xmlcontent)
@@ -434,7 +437,9 @@ def print_channel_structure(xmlcontent):
 
 
 def update_trending_channels_xml(site, tstart=None, tstop=None):
-    """maintain local cache of trending channels in xml file
+    """
+    maintain local cache of trending channels in xml file
+    arg: site -- localhost, slac, ... (see list in this file)
     arg: tstart -- channels active since tstart (seconds since the epoch)
     """
     logging.debug("update_trending_channels_xml(%s, %s)", tstart, tstop)
@@ -631,39 +636,35 @@ def get_unique_time_intervals(starts=None, stops=None, intervalarr=None, duratio
             logging.error("Date assignment failed")
             return None
 
-    i = 0
-    for interval in intervals:
+    for id, interval in enumerate(intervals):
         logging.debug(
             "time interval[%d] (before merge): %d -- %d (%d sec)",
-            i,
+            id,
             interval[0],
             interval[1],
             (interval[1] - interval[0]) / 1000,
         )
-        i += 1
 
     # merge overlaps to generate list of distinct intervals
     intervals.sort()  # sorts so that intervals[i][0] <= intervals[i+1][0]
     i = 1
     while i < len(intervals):  # loop over pairs of intervals
         if intervals[i - 1][1] >= intervals[i][0]:
-            intervals[i][0] = intervals[i - 1][0]  # move left edge down
+            intervals[i][0] = intervals[i - 1][0]  # decrease left edge
             if intervals[i - 1][1] > intervals[i][1]:
-                intervals[i][1] = intervals[i - 1][1]  # move right edge up
+                intervals[i][1] = intervals[i - 1][1]  # increase right edge
             del intervals[i - 1]  # delete the 1st of the pair
         else:
             i += 1  # no overlap so move to next pair
 
-    i = 0
-    for interval in intervals:
+    for id, interval in enumerate(intervals):
         logging.debug(
             "time interval[%d] (after merge): %d -- %d (%d sec)",
-            i,
+            id,
             interval[0],
             interval[1],
             (interval[1] - interval[0]) / 1000,
         )
-        i += 1
 
     return intervals
 
@@ -720,7 +721,7 @@ def parse_channel_sources(sources: list, channel_cache: str) -> tuple:
 
     oflds_r, regexes = get_chanids_from_regexes(sources, channel_cache)
     if oflds_r:
-        logging.debug("found valid channels from channel patterns")
+        logging.debug("found %d channels from regexes", len(oflds_r))
         return oflds_r, regexes
 
     return None, None
@@ -886,3 +887,369 @@ def init_trending_from_input_xml(input_files: list) -> str:
 
     logging.debug("channel dict contains %d active channels", len(chid_dict))
     return sites[site]
+
+
+# begin new functions
+def set_trending_source(
+    tmin: int, tmax: int, input_file: str = None, site: str = None, force: bool = False
+):
+    """
+    args:
+        input_file: optlist.input_file, None => rest-server, file => local xml file
+        site: optlist.site
+        force: optlist.force (to pick up new channels)
+        tmin:
+        tmax:
+    returns:
+        tsite:
+        channel_file
+    """
+
+    # set up the trending source(cached-on-disk, slac, base, summit etc.)
+    if not input_file:
+        tsite = get_trending_server(site)
+        if not tsite or not tsite["server"]:
+            logging.error("failed to determine trending server")
+            sys.exit(1)
+
+        # access the file with the channel list and update if needed
+        if force:
+            channel_file = update_trending_channels_xml(tsite["name"])
+        else:
+            channel_file = update_trending_channels_xml(
+                tsite["name"], tmin / 1000, tmax / 1000
+            )
+    else:  # get site and data from local input xml file
+        logging.debug("using input file %s", input_file)
+        tsite = init_trending_from_input_xml(input_file)
+        if not tsite:
+            logging.error("failed to determine trending server")
+            sys.exit(1)
+        channel_file = None
+
+    return tsite, channel_file
+
+
+def filter_raft_types(e2v: bool, itl: bool, science: bool, corner: bool, oflds: dict):
+    """
+    remove {id:path} entries from oflds (nominal selected channels)
+    inputs:
+        (e2v, itl, science, corner) are selections whose complements are rejected
+    output: oflds is returned after being altered in place
+    """
+    rafts_to_reject = []
+    if e2v:
+        rafts_to_reject.extend(rafts_of_type["ITL"])
+    if itl:
+        rafts_to_reject.extend(rafts_of_type["E2V"])
+    if science:
+        rafts_to_reject.extend(rafts_of_type["CORNER"])
+    if corner:
+        rafts_to_reject.extend(rafts_of_type["SCIENCE"])
+    if rafts_to_reject:
+        rids = []
+        for chid in oflds:  # loop over paths
+            logging.debug("id= %5d  path= %s", int(chid), oflds[chid])
+            for raft in set(rafts_to_reject):  # loop over rafts of type
+                logging.debug("raft to reject = %s", raft)
+                if re.search(f"/{raft}/", oflds[chid]):
+                    rids.append(chid)
+                    logging.debug("adding %s to channel to reject", oflds[chid])
+                    break
+            else:
+                logging.debug("NOT adding %s to channel to reject", oflds[chid])
+        for rid in rids:
+            removed = oflds.pop(rid)
+            logging.debug("removing these channels to process: %s", removed)
+    logging.debug("%d channels remaining", len(oflds))
+    return oflds
+
+
+def get_xml_from_file(input_file: list) -> list:
+    """
+    - get input from local saved file(s) rather than trending service
+    - an issue is that the input file need not have the
+      same set of channels or time intervals as requested on command line.
+    - The output time intervals will be restricted to the intersection
+      of the intervals present in the input files.
+    - Further, time sampling (bins) is whatever was previously requested
+    - finally, note that etree.parse() closes the files it processes
+    input: list of files
+    output a list of raw xml responses
+    """
+    responses = []
+    parser = etree.XMLParser(remove_blank_text=True)
+    for ifile in input_file:
+        logging.debug("using %s for input", ifile)
+        logging.debug("test for well-formed xml...")
+        try:
+            tree = etree.parse(ifile, parser)
+        except etree.ParseError as e:
+            logging.error("parsing %s failed: %s", ifile, e)
+            sys.exit(1)
+        except etree.XMLSyntaxError as e:
+            logging.error("parsing %s failed: %s", ifile, e)
+            sys.exit(1)
+        else:
+            logging.debug("successfully parsed %s", ifile)
+
+        logging.debug("appending to responses...")
+        responses.append(
+            etree.tostring(
+                tree.getroot(),
+                encoding="UTF-8",
+                xml_declaration=True,
+                pretty_print=False,
+            )
+        )
+
+        logging.debug("deleting the etree")
+        del tree
+    return responses
+
+
+def get_xml_from_trending(
+    tsite: dict, oflds: dict, intervals: list, timebins: float
+) -> list:
+    """
+    inputs:
+        tsite: dict of site info: name, server-ip, tz, ...
+        oflds: channels dict, {id:path}, to get data for
+        intervals: list of disjoint (start, stop) times in milliseconds
+        timebins: optlist.timebins  where None=>raw, 0=>auto, N=>N-bins
+
+    output: responses[] as a list
+
+    CCS is pre-binned at 5m, 30m, or will rebin on-the-fly
+    default is raw data, timebins triggers stat data
+    query the rest server and place responses into a list
+    join the ids requested as "id0&id=id1&id=id2..." for query
+    """
+    ival_max_len = 60 * 60 * 24 * 7 * 1000  # milliseconds in 1 week
+
+    idstr = "&id=".join(id for id in oflds)
+    responses = []
+    server = tsite["server"]
+    port = tsite["port"]
+    data_url = f"http://{server}:{port}/rest/data/dataserver"
+
+    for ival in intervals:  # only one interval per query allowed
+        # if ival is too long, split into sequence of smaller intervals
+        # ival_split = math.ceil((ival[1] - ival[0])/ival_max_len)
+
+        res = query_rest_server(ival[0], ival[1], data_url, idstr, timebins)
+        responses.append(res)
+    return responses
+
+
+def autosize_timebins(intervals: list) -> int:
+    """
+    use the shortest interval and try to match the best CCS pre-binned size
+    input: intervals list = [[t00,t01],[t10,t11],...]
+    returns: timebins as calculated to ~match pre-binned CCS tables
+    """
+    imin = intervals[0][1] - intervals[0][0]  # milliseconds since the epoch
+    for ival in intervals:  #
+        ilen = ival[1] - ival[0]
+        if ilen < imin:
+            imin = ilen
+
+    logging.debug("timebins=0")
+    logging.debug("ival[1]= %d, ival[0]= %d", ival[1], ival[0])
+    if int(imin / 1000 / 60) < 30:  # <30m => raw data
+        timebins = None
+    elif int(imin / 1000 / 3600) < 5:  # <5h => 1m bins
+        timebins = int(imin / 1000.0 / 60.0)
+    elif int(imin / 1000 / 3600) < 50:  # <50h => 5m bins
+        timebins = int(imin / 1000.0 / 300.0)
+    else:  # 30m bins
+        timebins = int(imin / 1000.0 / 1800.0)
+    logging.debug("timebins= %d", timebins)
+
+    return timebins
+
+
+def save_to_xml(tsite: dict, responses: list):
+    """
+    # Output to stdout a well formed xml tree aggregating the xml received
+    # Main use is to save to local file, and re-use for subsequent queries
+    # for statistics, plots etc. with subset of channels and time periods
+    # Also useful fo debugging and verification of data
+    # need to have server info as attribs to get tz correct
+    """
+    xml_dec = b'<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
+    os.write(1, xml_dec)
+    datas_str = '<datas {}="{}" {}="{}" {}="{}">\n'.format(
+        "trending_server",
+        tsite["server"],
+        "trending_port",
+        tsite["port"],
+        "trending_tz",
+        tsite["tz"],
+    )
+    os.write(1, str.encode(datas_str))
+    for res in responses:
+        root = etree.fromstring(res)
+        for data in root.iter("data"):
+            os.write(
+                1,
+                etree.tostring(
+                    data, encoding="UTF-8", xml_declaration=False, pretty_print=True
+                ),
+            )
+    try:
+        os.write(1, b"</datas>")
+    except OSError:
+        # 'Broken pipe' OSError when stdout is closed
+        pass
+
+
+def xml_to_numpy(intervals: list, oflds: dict, responses: list):
+    """
+    convert xml responses (list of strings) to usable data in numpy arrays
+
+    inputs:
+           intervals  # list of time intervals as [[t0,t1],...]
+           oflds      # dict of {id:path} trending channel paths
+           responses  # list of xml responses as strings
+    returns:
+           numpy-arrays
+    """
+    # Translate the xml responses into internal arrays etc.
+    # XML Tree structure looks like this:
+    # 1: data [id, path]
+    # 2: trendingresult [-]
+    #     3: channelmetadata [-]
+    #         4: channelmetadatavalue [tstart, tstop, name, value]
+    #     3: trendingdata [-]
+    #         4: datavalue [name, value]
+    #         4: axisvalue [name, value, loweredge, upperedge]
+    # where [id, path] could appear multiple times and input time intervals are
+    # allowed to overlap
+    #
+    chanspec = dict()  # where keys are chids, element is also a dict
+    chanmd = dict()  # key is chid, elements will be dicts holding arrays
+    chandata = dict()  # key is chid, element is list of (time, value) tuples
+    datacnt = 0
+    for res in responses:
+        root = etree.fromstring(res)
+        for data in root.iter("data"):
+            datacnt += 1
+            chid = data.attrib.get("id")
+            path = data.attrib.get("path")
+            # verify this element's (chid, path) matches the input list
+            # logging.debug('id=%s  path=%s', chid, path)
+            if chid not in oflds:
+                continue
+            if path is None or oflds[chid] != path:
+                logging.warning(
+                    "inputpath(id=%s): %s != %s (xmlpath), using %s",
+                    chid,
+                    oflds[chid],
+                    path,
+                    oflds[chid],
+                )
+                path = oflds[chid]
+            # check if chid in
+            if chid in chanspec:
+                if chanspec[chid]["path"] != path:
+                    logging.warning("path mismatch for channel_id= %d", chid)
+                    logging.warning(
+                        "  %s != %s, skipping....", chanspec[chid]["path"], path
+                    )
+            else:
+                chanspec[chid] = dict()
+                chanspec[chid]["path"] = path
+                chanspec[chid]["units"] = "none"
+
+            # channelmetadata:
+            # each element is a name, value and time interval
+            # a name can appear multiple times with distinct time intervals
+            # convert to a list, per name, of ordered pairs (value,time)
+            # that could be plotted using those points
+            #
+            if chid not in chanmd:  # check if already exists
+                chanmd[chid] = dict()
+            # metadata:
+            # parse all but only using units for now
+            for mdval in data.iter("channelmetadatavalue"):
+                if mdval.keys():  # empty sequence is false
+                    mdname = mdval.attrib.get("name")  # key
+                    mdvalue = mdval.attrib.get("value")  # value
+                    mdstart = mdval.attrib.get("tstart")
+                    mdstop = mdval.attrib.get("tstop")
+                if mdname in chanmd[chid]:
+                    chanmd[chid][mdname].append((mdstart, mdvalue))
+                    chanmd[chid][mdname].append((mdstop, mdvalue))
+                else:  # first assignment
+                    chanmd[chid][mdname] = [(mdstart, mdvalue), (mdstop, mdvalue)]
+            # trendingdata:
+            # extract timestamp, value pairs in axisvalue, datavalue tags
+            if chid not in chandata:  # first time
+                chandata[chid] = []  # empty list
+            for tdval in data.iter("trendingdata"):
+                dataval = tdval.find("datavalue")
+                if dataval is not None:
+                    tvalue = dataval.attrib.get("value")
+                else:
+                    continue
+                axisval = tdval.find("axisvalue")
+                if axisval is not None:
+                    tstamp = axisval.attrib.get("value")
+                else:
+                    continue
+                # if tstamp is in intervals then append
+                for ival in intervals:  # slow, but no other way?
+                    if ival[0] < int(tstamp) < ival[1]:
+                        chandata[chid].append((tstamp, tvalue))
+                        break
+
+    # Done translating the xml responses into internal lists etc.
+    # Delete all the raw xml responses
+    logging.debug("processed %d xml channel responses", len(responses))
+    logging.debug("processed %d uniq channel requests", len(chanspec))
+    logging.debug("processed %d total channel queries", datacnt)
+    del responses
+
+    # chanspec = dict()  # where keys are chids, values are ccs paths
+    # chanmd = dict()  # key is chid, elements will be dicts holding lists
+    # chandata = dict() # key is chid, elements are (time, value) pair lists
+    # so all responses processed, now have data organized by a set of dicts
+    # with the the index on channel id.  Multiple queries for a given channel
+    # id are grouped together and there could be duplicate values.
+    #
+    # To facilitate operating on the data, transform chandat from list[] based
+    # (which was easy to append to) to np.array based data.
+    chandt = np.dtype({"names": ["tstamp", "value"], "formats": ["int", "float"]})
+    trimids = []
+    for chid in chanspec:
+        path = chanspec[chid]["path"]
+        logging.debug("id=%s  path=%s", chid, path)
+        for mdname in chanmd[chid]:
+            # pick out and process the md's we want
+            if mdname == "units" and chanspec[chid]["units"] == "none":
+                chanspec[chid]["units"] = chanmd[chid][mdname][-1][1]
+
+        logging.debug("    units=%s", chanspec[chid]["units"])
+        # sort and remove duplicates from chandata[chid] where:
+        # chandata[chid] = [(t0, v0), (t1, v1), ...., (tn, vn)]
+        # and convert to np array
+        tmparr = np.array(chandata[chid], dtype=chandt)
+        chandata[chid] = np.unique(tmparr)
+        logging.debug(
+            "    chandata: %d uniq/sorted values from %d entries",
+            np.size(chandata[chid]),
+            np.size(tmparr),
+        )
+        del tmparr
+        if np.size(chandata[chid]) == 0:  # append chid to trimid list
+            logging.debug("%s has no data", chanspec[chid]["path"])
+            # arrange to trim empty data
+            trimids.append(chid)
+
+    for chid in trimids:
+        del chandata[chid]
+        del chanmd[chid]
+        del chanspec[chid]
+
+    return chanspec, chandata

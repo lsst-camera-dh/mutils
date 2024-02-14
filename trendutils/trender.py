@@ -19,7 +19,7 @@ import matplotlib.dates as mdate
 from astropy.time import Time
 import astropy.units as au
 
-# put parent directory into sys.path
+# put ../lib directory into sys.path
 bp = os.path.dirname(os.path.realpath(__file__)).split(os.sep)
 modpath = os.sep.join(bp[:-1] + ["lib"])
 sys.path.insert(0, modpath)
@@ -29,7 +29,6 @@ try:
     import trendutils as tu
     import mutils as mu
     import plotutils as pu
-    from lsst_camera_data import rafts_of_type
 except ImportError as e:
     logging.error("Import failed: %s", e)
     sys.exit(1)
@@ -39,7 +38,11 @@ if sys.version_info[0] < 3 or sys.version_info[1] < 7:
 
 
 def parse_args():
-    """handle command line"""
+    """
+    parse command line
+    This is standard argparse stuff which mostly spells out all the
+    features of the program but is necessarily long and messy
+    """
     style_list = ["default"] + sorted(
         [
             "bmh",
@@ -92,10 +95,20 @@ def parse_args():
         "channel_source", nargs="+", help="filename|regex specifying channels"
     )
     parser.add_argument(
+        "--reject", nargs="+", help="filename|regex providing channels to reject"
+    )
+    tgroup = parser.add_mutually_exclusive_group()  # all to stdout
+    tgroup.add_argument(
         "--input_file", nargs="+", help="XML file with trending data, =>no db query"
     )
-    parser.add_argument(
-        "--reject", nargs="+", help="filename|regex providing channels to reject"
+    tgroup.add_argument(
+        "--timebins",
+        nargs="?",
+        default=None,
+        const=0,
+        type=int,
+        metavar="nBins (blank for autosize)",
+        help="retrieve, plot time avg'd bins (esp for long durations)",
     )
     #
     # Output options for text based outputs
@@ -193,7 +206,7 @@ def parse_args():
         "--fmt",
         nargs=1,
         metavar="format_str",
-        default="-",
+        default=None,
         help="Matplotlib format string (eg. 'o-')",
     )
     parser.add_argument(
@@ -227,17 +240,9 @@ def parse_args():
     )
     parser.add_argument(
         "--duration",
-        metavar="seconds",
+        metavar="timespan",
         default=None,
-        help="duration [s]|(*s,*m,*h,*d,*w) start/stop spec",
-    )
-    parser.add_argument(
-        "--timebins",
-        nargs="?",
-        const=0,
-        type=int,
-        metavar="nBins (blank for autosize)",
-        help="retrieve and plot time avg'd bins (esp for long durations)",
+        help="duration *s,*m,*h,*d,*w spec, eg. 1h == 1 hour",
     )
     parser.add_argument(
         "--sharex",
@@ -264,11 +269,12 @@ def parse_args():
     parser.add_argument("--e2v", action="store_true", help="limit to E2V devices")
     parser.add_argument("--science", action="store_true", help="limit to science rafts")
     parser.add_argument("--corner", action="store_true", help="limit to corner rafts")
-    parser.add_argument(
+    parser.add_argument(  # None: use iso date/time
         "--mjd",
         nargs="?",
-        default=argparse.SUPPRESS,
-        const=int(Time.now().mjd),
+        # default=argparse.SUPPRESS,
+        default=None,
+        const=float(math.nan),
         type=float,
         metavar="offset (blank for none)",
         help="use MJD time axis",
@@ -276,7 +282,7 @@ def parse_args():
     parser.add_argument(
         "--forceupdate",
         action="store_true",
-        help="Force update of current cached channel file",
+        help="Force update to most recent channel file",
     )
     #
     parser.add_argument("--style", default="ggplot", required=False, choices=style_list)
@@ -288,72 +294,50 @@ def trender():
     """main logic"""
     # get command args and options
     optlist = parse_args()
-    try:
-        getattr(optlist, "mjd")
-        use_mjd = True
-    except AttributeError:
-        use_mjd = False
+    optlistd = vars(optlist)  # dict form of namespace object
 
     mu.init_logging(optlist.debug)
     mu.init_warnings()
 
     logging.debug("optlist: %s", optlist)
 
-    # get list of time intervals to process
+    # make list of time intervals to process (in milliseconds since the Epoch)
     intervals = tu.get_unique_time_intervals(
         optlist.start, optlist.stop, optlist.interval, optlist.duration
     )
     if intervals:  # interval accounting
         intcnt = len(intervals)
-        inttot = int(sum([t[1] - t[0] for t in intervals]) / 1000)
+        inttot = int(sum([t[1] - t[0] for t in intervals]) / 1000)  # sec
         tmin = intervals[0][0]
         tmax = intervals[-1][1]
     else:
         logging.error("time interval spec failed")
         sys.exit(1)
 
-    # set up the trending source(chached-on-disk, slac, base, summit etc.)
-    if not optlist.input_file:
-        tsite = tu.get_trending_server(optlist.site)
-        if tsite and tsite["server"]:
-            data_url = "http://{}:{}/rest/data/dataserver".format(
-                tsite["server"], tsite["port"]
-            )
-        else:
-            logging.error("failed to determine trending server")
-            sys.exit(1)
+    if optlist.timebins is not None:  # using time averaged data
+        if optlist.timebins == 0:  # calculate autosize number of bins
+            optlist.timebins = tu.autosize_timebins(intervals)
 
-        # access the file with the channel list and update if needed
-        if optlist.forceupdate:
-            channel_file = tu.update_trending_channels_xml(tsite["name"])
+    if optlist.mjd is not None:
+        if math.isnan(optlist.mjd):
+            mjdoff = math.floor(Time(tmin / 1000, format="unix").mjd)
         else:
-            channel_file = tu.update_trending_channels_xml(
-                tsite["name"], tmin / 1000, tmax / 1000
-            )
-    else:  # get site and data from input file
-        logging.debug("using input file %s", optlist.input_file)
-        tsite = tu.init_trending_from_input_xml(optlist.input_file)
-        if not tsite:
-            logging.error("failed to determine trending server")
-            sys.exit(1)
-        channel_file = None
+            mjdoff = optlist.mjd
 
-    # construct the dict of input channels as {id:path} and store regexes as list
-    # oflds = dict()  # dict to hold channel information
-    # regexes = []
+    tsite, channel_file = tu.set_trending_source(
+        tmin, tmax, optlist.input_file, optlist.site, optlist.forceupdate
+    )
+
+    # construct dict oflds of selected channels as {id:path} and store regexes as list
     oflds, regexes = tu.parse_channel_sources(optlist.channel_source, channel_file)
-    if oflds:
-        logging.debug("found %d channels", len(oflds))
-    else:
+    if not oflds:
         logging.error("no channels found")
         sys.exit(1)
-    if regexes:
-        logging.debug("found %d regexes with valid channels", len(regexes))
 
     # remove channels on the reject list (eg bad RTDs etc)
     rflds, rregexes = tu.parse_channel_sources(optlist.reject, channel_file)
     if rflds:
-        logging.debug("found %d channels to reject", len(rflds))
+        logging.debug("found %d rejected channels", len(rflds))
         for rid in rflds.keys():
             if rid in oflds.keys():
                 removed = oflds.pop(rid)
@@ -363,469 +347,55 @@ def trender():
         logging.debug("%d channels remaining", len(oflds))
 
     # filter on E2V, ITL, science, corner by removing other types
-    rafts_to_reject = []
-    if optlist.e2v:
-        rafts_to_reject.extend(rafts_of_type["ITL"])
-    if optlist.itl:
-        rafts_to_reject.extend(rafts_of_type["E2V"])
-    if optlist.science:
-        rafts_to_reject.extend(rafts_of_type["CORNER"])
-    if optlist.corner:
-        rafts_to_reject.extend(rafts_of_type["SCIENCE"])
-    if rafts_to_reject:
-        rids = []
-        for chid in oflds:  # loop over paths
-            logging.debug("id= %5d  path= %s", int(chid), oflds[chid])
-            for raft in set(rafts_to_reject):  # loop over rafts of type
-                logging.debug("raft to reject = %s", raft)
-                if re.search(f"/{raft}/", oflds[chid]):
-                    rids.append(chid)
-                    logging.debug("adding %s to channels to reject", oflds[chid])
-                    break
-            else:
-                logging.debug("NOT adding %s to channels to reject", oflds[chid])
-        for rid in rids:
-            removed = oflds.pop(rid)
-            logging.debug("removing %s from channels to process", removed)
-    logging.debug("%d channels remaining", len(oflds))
+    oflds = tu.filter_raft_types(
+        optlist.e2v, optlist.itl, optlist.science, optlist.corner, oflds
+    )
 
-    # now have info needed to query the CCS trending db
+    if optlist.debug:
+        logging.debug("Found matching channels:")
+        for chid in oflds:
+            logging.debug("id= %6d  path= %s", int(chid), oflds[chid])
 
-    if optlist.match:
+    if optlist.match:  # print matching channels and EXIT
         print("#--- Found matching channels:")
         for chid in oflds:
             print(f"   id: {chid}  path: {oflds[chid]}")
         sys.exit(0)
 
-    logging.debug("Found matching channels:")
-    for chid in oflds:
-        logging.debug("id= %6d  path= %s", int(chid), oflds[chid])
-
-    #  Get the trending data either from local saved files or via
-    #  trending db queries to the rest service
+    # retrieve the requested trending data
     if optlist.input_file:
-        # get input from files rather than trending service
-        # an issue is that the input file need not have the
-        # same set of channels or time intervals as requested on command line.
-        # The output time intervals will be restricted to the intersection
-        # of the intervals present in the input files.
-        responses = []
-        parser = etree.XMLParser(remove_blank_text=True)
-        for ifile in optlist.input_file:
-            logging.debug("using %s for input", ifile)
-            logging.debug("test for well-formed xml...")
-            try:
-                tree = etree.parse(ifile, parser)
-            except etree.ParseError as e:
-                logging.debug("parsing %s failed: %s", ifile, e)
-                sys.exit(1)
-            except etree.XMLSyntaxError as e:
-                logging.debug("parsing %s failed: %s", ifile, e)
-                sys.exit(1)
-            else:
-                logging.debug("successfully parsed %s", ifile)
-
-            logging.debug("appending to responses...")
-            responses.append(
-                etree.tostring(
-                    tree.getroot(),
-                    encoding="UTF-8",
-                    xml_declaration=True,
-                    pretty_print=False,
-                )
-            )
-
-            logging.debug("deleting the etree")
-            del tree
-
+        responses = tu.get_xml_from_file(optlist.input_file)
     else:
-        # CCS is pre-binned at 5m, 30m, or will rebin on-the-fly
-        # default is raw data, timebins triggers stat data
-        # query the rest server and place responses into a list
-        # join the ids requested as "id0&id=id1&id=id2..." for query
-        idstr = "&id=".join(id for id in oflds)
-        responses = []
-        timebins = 0
-        nbins = 0
-        if optlist.timebins == 0:  # autosize it
-            for ival in intervals:  # only one interval per query allowed
-                logging.debug("timebins=0")
-                logging.debug("ival[1]= %d, ival[0]= %d", ival[1], ival[0])
-                if int((ival[1] - ival[0]) / 1000 / 60) < 5:  # <5m => raw data
-                    timebins = None
-                elif int((ival[1] - ival[0]) / 1000 / 3600) < 10:  # <10h => 1m bins
-                    timebins = int(((ival[1] - ival[0]) / 1000.0) / 60.0)
-                elif int((ival[1] - ival[0]) / 1000 / 3600) < 50:  # <50h => 5m bins
-                    timebins = int(((ival[1] - ival[0]) / 1000.0) / 300.0)
-                else:  # 30m bins
-                    timebins = int(((ival[1] - ival[0]) / 1000.0) / 1800.0)
-                logging.debug("timebins= %d", timebins)
-                if timebins and nbins < timebins:
-                    nbins = timebins
-        else:
-            nbins = optlist.timebins  # is None or an integer
+        responses = tu.get_xml_from_trending(tsite, oflds, intervals, optlist.timebins)
 
-        for ival in intervals:  # only one interval per query allowed
-            res = tu.query_rest_server(ival[0], ival[1], data_url, idstr, nbins)
-            responses.append(res)
-    # Now have the data from trending service
-
-    # Output to stdout a well formed xml tree aggregating the xml received
-    # Main use is to save to local file, and re-use for subsequent queries
-    # for statistics, plots etc. with subset of channels and time periods
-    # Also useful fo debugging and verification of data
-    # need to have server info as attribs to get tz correct
-    if optlist.xml:
-        xml_dec = b'<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
-        os.write(1, xml_dec)
-        datas_str = '<datas {}="{}" {}="{}" {}="{}">\n'.format(
-            "trending_server",
-            tsite["server"],
-            "trending_port",
-            tsite["port"],
-            "trending_tz",
-            tsite["tz"],
-        )
-        os.write(1, str.encode(datas_str))
-        for res in responses:
-            root = etree.fromstring(res)
-            for data in root.iter("data"):
-                os.write(
-                    1,
-                    etree.tostring(
-                        data, encoding="UTF-8", xml_declaration=False, pretty_print=True
-                    ),
-                )
-        try:
-            os.write(1, b"</datas>")
-        except OSError:
-            # 'Broken pipe' OSError when stdout is closed
-            pass
-
+    # save data locally and exit
+    if optlist.xml:  # dump xml to stdout
+        tu.save_to_xml(tsite, responses)
         sys.exit(0)
 
-    # Translate the xml responses into internal arrays etc.
-    # XML Tree structure looks like this:
-    # 1: data [id, path]
-    # 2: trendingresult [-]
-    #     3: channelmetadata [-]
-    #         4: channelmetadatavalue [tstart, tstop, name, value]
-    #     3: trendingdata [-]
-    #         4: datavalue [name, value]
-    #         4: axisvalue [name, value, loweredge, upperedge]
-    # where [id, path] could appear multiple times and input time intervals are
-    # allowed to overlap
-    #
-    chanspec = dict()  # where keys are chids, element is also a dict
-    chanmd = dict()  # key is chid, elements will be dicts holding arrays
-    chandata = dict()  # key is chid, element is list of (time, value) tuples
-    datacnt = 0
-    for res in responses:
-        root = etree.fromstring(res)
-        for data in root.iter("data"):
-            datacnt += 1
-            chid = data.attrib.get("id")
-            path = data.attrib.get("path")
-            # verify this element's (chid, path) matches the input list
-            # logging.debug('id=%s  path=%s', chid, path)
-            if chid not in oflds:
-                continue
-            if path is None or oflds[chid] != path:
-                logging.warning(
-                    "inputpath(id=%s): %s != %s (xmlpath), using %s",
-                    chid,
-                    oflds[chid],
-                    path,
-                    oflds[chid],
-                )
-                path = oflds[chid]
-            # check if chid in
-            if chid in chanspec:
-                if chanspec[chid]["path"] != path:
-                    logging.warning("path mismatch for channel_id= %d", chid)
-                    logging.warning(
-                        "  %s != %s, skipping....", chanspec[chid]["path"], path
-                    )
-            else:
-                chanspec[chid] = dict()
-                chanspec[chid]["path"] = path
-                chanspec[chid]["units"] = "none"
-
-            # channelmetadata:
-            # each element is a name, value and time interval
-            # a name can appear multiple times with distinct time intervals
-            # convert to a list, per name, of ordered pairs (value,time)
-            # that could be plotted using those points
-            #
-            if chid not in chanmd:  # check if already exists
-                chanmd[chid] = dict()
-            # metadata:
-            # parse all but only using units for now
-            for mdval in data.iter("channelmetadatavalue"):
-                if mdval.keys():  # empty sequence is false
-                    mdname = mdval.attrib.get("name")  # key
-                    mdvalue = mdval.attrib.get("value")  # value
-                    mdstart = mdval.attrib.get("tstart")
-                    mdstop = mdval.attrib.get("tstop")
-                if mdname in chanmd[chid]:
-                    chanmd[chid][mdname].append((mdstart, mdvalue))
-                    chanmd[chid][mdname].append((mdstop, mdvalue))
-                else:  # first assignment
-                    chanmd[chid][mdname] = [(mdstart, mdvalue), (mdstop, mdvalue)]
-            # trendingdata:
-            # extract timestamp, value pairs in axisvalue, datavalue tags
-            if chid not in chandata:  # first time
-                chandata[chid] = []  # empty list
-            for tdval in data.iter("trendingdata"):
-                dataval = tdval.find("datavalue")
-                if dataval is not None:
-                    tvalue = dataval.attrib.get("value")
-                else:
-                    continue
-                axisval = tdval.find("axisvalue")
-                if axisval is not None:
-                    tstamp = axisval.attrib.get("value")
-                else:
-                    continue
-                # if tstamp is in intervals then append
-                for ival in intervals:  # slow, but no other way?
-                    if ival[0] < int(tstamp) < ival[1]:
-                        chandata[chid].append((tstamp, tvalue))
-                        break
-
-    # Done translating the xml responses into internal lists etc.
-    # Delete all the raw xml responses
-    logging.debug("processed %d xml channel responses", len(responses))
-    logging.debug("processed %d uniq channel requests", len(chanspec))
-    logging.debug("processed %d total channel queries", datacnt)
-    del responses
-
-    # chanspec = dict()  # where keys are chids, values are ccs paths
-    # chanmd = dict()  # key is chid, elements will be dicts holding lists
-    # chandata = dict() # key is chid, elements are (time, value) pair lists
-    # so all responses processed, now have data organized by a set of dicts
-    # with the the index on channel id.  Multiple queries for a given channel
-    # id are grouped together and there could be duplicate values.
-    #
-    # To facilitate operating on the data, transform chandat from list[] based
-    # (which was easy to append to) to np.array based data.
-    chandt = np.dtype({"names": ["tstamp", "value"], "formats": ["int", "float"]})
-    trimids = []
-    for chid in chanspec:
-        path = chanspec[chid]["path"]
-        logging.debug("id=%s  path=%s", chid, path)
-        for mdname in chanmd[chid]:
-            # pick out and process the md's we want
-            if mdname == "units" and chanspec[chid]["units"] == "none":
-                chanspec[chid]["units"] = chanmd[chid][mdname][-1][1]
-
-        logging.debug("    units=%s", chanspec[chid]["units"])
-        # sort and remove duplicates from chandata[chid] where:
-        # chandata[chid] = [(t0, v0), (t1, v1), ...., (tn, vn)]
-        # and convert to np array
-        tmparr = np.array(chandata[chid], dtype=chandt)
-        chandata[chid] = np.unique(tmparr)
-        logging.debug(
-            "    chandata: %d uniq/sorted values from %d entries",
-            np.size(chandata[chid]),
-            np.size(tmparr),
-        )
-        del tmparr
-        if np.size(chandata[chid]) == 0:  # append chid to trimid list
-            logging.debug("%s has no data", chanspec[chid]["path"])
-            # arrange to trim empty data
-            trimids.append(chid)
-
-    for chid in trimids:
-        del chandata[chid]
-        del chanmd[chid]
-        del chanspec[chid]
+    # get the data as numpy array
+    chanspec, chandata = tu.xml_to_numpy(intervals, oflds, responses)
 
     # print to stdout a text dump of the data, in time order per channel
     #
     if optlist.text:
-        # print a header for the text
-        #
-        print("#")
-        print("# {}".format(optlist.title))
-        print("#")
-        print(
-            "# CCS trending dump at {}".format(
-                dt.datetime.now(gettz()).isoformat(timespec="seconds")
-            )
-        )
-        print(
-            "# Data for {} total seconds from {} intervals".format(inttot, intcnt),
-            end="",
-        )
-        print(
-            " over {} (h:m:s) from:".format(
-                dt.timedelta(seconds=(tmax / 1000 - tmin / 1000))
-            )
-        )
-        print(
-            '#     tmin={}: "{}"'.format(
-                tmin,
-                dt.datetime.fromtimestamp(tmin / 1000, gettz(tsite["tz"])).isoformat(
-                    timespec="seconds"
-                ),
-            )
-        )
-        print(
-            '#     tmax={}: "{}"'.format(
-                tmax,
-                dt.datetime.fromtimestamp(tmax / 1000, gettz(tsite["tz"])).isoformat(
-                    timespec="seconds"
-                ),
-            )
-        )
-        print(
-            "#{:<{wt}s} {:>{wv}s} {:<{wu}s}  {:<{wp}s}  {:<{wd}s}".format(
-                " 'time (ms)'",
-                "'value'",
-                "'unit'",
-                "'channel CCS path'",
-                "'iso-8601 Date'",
-                wt=13,
-                wv=12,
-                wu=6,
-                wp=30,
-                wd=30,
-            )
-        )
-        # loop over all channels sorted on units then path
-        for chid in sorted(
-            chanspec.keys(), key=lambda x: (chanspec[x]["units"], chanspec[x]["path"])
-        ):
-            path = chanspec[chid]["path"]
-            unitstr = chanspec[chid]["units"]
-            if np.size(chandata[chid]) == 0:
-                continue
-            for tstamp, value in chandata[chid]:
-                try:
-                    date = dt.datetime.fromtimestamp(
-                        tstamp / 1000.0, gettz(tsite["tz"])
-                    ).isoformat(timespec="milliseconds")
-                    print(
-                        "{:<{wt}d} {:>{wv}g} {:>{wu}s}   ".format(
-                            int(tstamp), float(value), unitstr, wt=14, wv="12.7", wu=6
-                        ),
-                        end="",
-                    )
-                    print(
-                        "{:<{wp}s}  {:<{wd}s}".format(
-                            path, date, wt=14, wv="12.7", wu=6, wp=30, wd=30
-                        )
-                    )
-                except IOError:
-                    # 'Broken pipe' IOError when stdout is closed
-                    pass
+        printText(optlist.title, tmin, tmax, inttot, intcnt, tsite, chanspec, chandata)
+        sys.exit()
 
     # print some statistics for each channel
     #
     if optlist.stats:
-        # print a header for the stats
-        #
-        print("#")
-        print("# {}".format(optlist.title))
-        print("#")
-        print(
-            "# CCS trending stats at {}".format(
-                dt.datetime.now(gettz()).isoformat(timespec="seconds")
-            )
+        printStats(
+            optlist.rstats,
+            optlist.title,
+            tmin,
+            tmax,
+            inttot,
+            intcnt,
+            tsite,
+            chanspec,
+            chandata,
         )
-        print(
-            "# Data for {} total seconds from {} intervals".format(inttot, intcnt),
-            end="",
-        )
-        print(
-            " over {} (h:m:s) from:".format(
-                dt.timedelta(seconds=(tmax / 1000 - tmin / 1000))
-            )
-        )
-        print(
-            '#     tmin="{}"'.format(
-                dt.datetime.fromtimestamp(tmin / 1000, gettz(tsite["tz"])).isoformat(
-                    timespec="seconds"
-                )
-            )
-        )
-        print(
-            '#     tmax="{}"'.format(
-                dt.datetime.fromtimestamp(tmax / 1000, gettz(tsite["tz"])).isoformat(
-                    timespec="seconds"
-                )
-            )
-        )
-        print(
-            "# {:>4s} {:>8s} {:>8s} {:>8s} {:>8s} {:>8s} {:>11s}".format(
-                "cnt", "mean", "median", "stddev", "min", "max", "d/dt 1/m"
-            ),
-            end="",
-        )
-        if optlist.rstats:
-            print(
-                "{:>8s} {:>8s} {:>8s}  ".format("rmean", "rmedian", "rstddev"), end=""
-            )
-        print(" {:<{wt}s} {:>{wu}s}".format("path", "units", wt=40, wu=6))
-
-        # loop over all channels sorted on units then path
-        for chid in sorted(
-            chanspec.keys(), key=lambda x: (chanspec[x]["units"], chanspec[x]["path"])
-        ):
-            path = chanspec[chid]["path"]
-            unitstr = chanspec[chid]["units"]
-            tstamp = chandata[chid]["tstamp"]
-            nelem = tstamp.size
-            if nelem > 0:
-                y = chandata[chid]["value"]
-                avg = np.mean(y)
-                med = np.median(y)
-                std = np.std(y)
-                npmin = np.min(y)
-                npmax = np.max(y)
-                if y.size > 5:
-                    # silly but better than taking last value
-                    npgrad = np.gradient(y, tstamp)
-                    grad = (
-                        60
-                        * 1000
-                        * (
-                            npgrad[-4] * 1.0
-                            + npgrad[-3] * 1.0
-                            + npgrad[-2] * 1.0
-                            + npgrad[-1] * 1.0
-                        )
-                        / 4.0
-                    )
-                else:
-                    grad = math.nan
-                if optlist.rstats:
-                    rmean, rmedian, rstd = stats.sigma_clipped_stats(y)
-            else:
-                avg = med = std = npmin = npmax = 0
-                grad = rmean = rmedian = rstd = 0
-            try:
-                print(
-                    "{:>6g} {:>8.4g} {:>8.4g} {:>8.4g} ".format(
-                        nelem,
-                        avg,
-                        med,
-                        std,
-                    ),
-                    end="",
-                )
-                print("{:>8.3g} {:>8.3g} ".format(npmin, npmax), end="")
-                print("{:>11.3g} ".format(grad), end="")
-                if optlist.rstats:
-                    print(
-                        "{:>8.4g} {:>8.4g} {:>8.4g}   ".format(rmean, rmedian, rstd),
-                        end="",
-                    )
-                print("{:<{wt}s} {:>{wu}s}".format(path, unitstr, wt=40, wu=6))
-            except IOError:
-                # 'Broken pipe' IOError when stdout is closed
-                pass
 
     # Plotting:
     #
@@ -911,13 +481,12 @@ def trender():
             and not optlist.overlaystart
             and not optlist.overlaystop
         ):
-            nax = nax * len(intervals)  # per interval, per channel
+            nax = nax * len(intervals)  # disjoint intervals
 
         logging.debug("nax=%d", nax)
-        # logging.debug('nrows= %d  ncols=%d', nrows, ncols)
 
         if not optlist.overlaytime and len(intervals) > 1 and optlist.sharex:
-            sharex = False
+            sharex = False  # not possible
         else:
             sharex = optlist.sharex
 
@@ -964,6 +533,7 @@ def trender():
                             logging.debug(
                                 "using axcnt=%d for regex_map[%s]", axcnt, regex
                             )
+                            break
                     if not chid_matched:
                         logging.error("no regex match found for %s", path)
                 else:
@@ -1005,9 +575,9 @@ def trender():
                     fmt = optlist.fmt[0]
                 else:
                     if optlist.timebins:
-                        fmt = "|-"
+                        fmt = "s-"
                     else:
-                        fmt = "o-"
+                        fmt = "-"
                 # do the actual plotting
                 #
                 if not (optlist.overlaystart or optlist.overlaystop):
@@ -1058,18 +628,18 @@ def trender():
                     # make label for legend
                     if not labeled:  # label first valid interval, save color
                         mlabel = "{}".format(chanspec[chid]["path"])
-                        if not use_mjd:
+                        if optlist.mjd is None:  # use dates
                             line = ax.plot_date(
                                 mds, y, fmt, label=mlabel, tz=gettz(tsite["tz"])
                             )
                         else:
-                            mjd = Time(mds, format="plot_date").mjd - float(optlist.mjd)
+                            mjd = Time(mds, format="plot_date").mjd - float(mjdoff)
                             line = ax.plot(mjd, y, fmt, color=mcolor, label=mlabel)
                         mcolor = line[0].get_color()
                         logging.debug("mcolor= %s", mcolor)
                         labeled = True
                     else:  # no label on later intervals, use saved color
-                        if not use_mjd:
+                        if optlist.mjd is None:  # use dates
                             line = ax.plot_date(
                                 mds,
                                 y,
@@ -1079,7 +649,7 @@ def trender():
                                 tz=gettz(tsite["tz"]),
                             )
                         else:
-                            mjd = Time(mds, format="plot_date").mjd - float(optlist.mjd)
+                            mjd = Time(mds, format="plot_date").mjd - float(mjdoff)
                             line = ax.plot(mjd, y, fmt, color=mcolor, label=None)
 
                     # set x,y-axis label format
@@ -1104,14 +674,12 @@ def trender():
                                     intervals[idx][0] / 1000, gettz(tsite["tz"])
                                 ).isoformat(timespec="seconds")
                             )
+                            if optlist.mjd is not None:  # nan or a value
+                                xlabel_str = "{}  MJD-{}".format(xlabel_str, mjdoff)
                             if optlist.timebins:
                                 xlabel_str = "{} [{} bins]".format(
                                     xlabel_str, optlist.timebins
                                 )
-                            if use_mjd:
-                                xlabel_str = "{}  MJD".format(xlabel_str)
-                                if optlist.mjd:
-                                    xlabel_str = "{}-{}".format(xlabel_str, optlist.mjd)
 
                             logging.debug("ax.set_xlabel(%s)", xlabel_str)
                             ax.set_xlabel(
@@ -1123,7 +691,7 @@ def trender():
 
                             ax.tick_params(axis="x", labelbottom=True)
                             # rotate the labels
-                            if not use_mjd:
+                            if optlist.mjd is None:
                                 for xtick in ax.get_xticklabels():
                                     xtick.set_rotation(30)
                                     xtick.set_horizontalalignment("right")
@@ -1231,8 +799,154 @@ def trender():
         else:
             plt.show()
 
-    # end of main()
     sys.exit(0)
+    # end of main()
+
+
+def printText(
+    title: str,
+    tmin: int,
+    tmax: int,
+    inttot: int,
+    intcnt: int,
+    tsite: dict,
+    chanspec: dict,
+    chandata: dict,
+):
+    """
+    print out data in text format
+    """
+    # print a header for the text
+    #
+    print("#")
+    print(f"# {title}")
+    print("#")
+    tstr = dt.datetime.now(gettz()).isoformat(timespec="seconds")
+    print(f"# CCS trending dump at {tstr}")
+    tdelta = dt.timedelta(seconds=(tmax / 1000 - tmin / 1000))
+    print(
+        f"# Data for {inttot} total seconds from {intcnt} intervals",
+        f" over {tdelta} (h:m:s) from:",
+    )
+    tstr = dt.datetime.fromtimestamp(tmin / 1000, gettz(tsite["tz"])).isoformat(
+        timespec="seconds"
+    )
+    print(f'#     tmin={tmin}: "{tstr}"')
+    tstr = dt.datetime.fromtimestamp(tmax / 1000, gettz(tsite["tz"])).isoformat(
+        timespec="seconds"
+    )
+    print(f'#     tmax={tmax}: "{tstr}"')
+    print(
+        f"# {'time (ms)':<13s} {'value':>11s}  {'unit':>5s}  ",
+        f"{'channel CCS path':<30s}  {'iso-8601 Date':<30s}",
+    )
+    # loop over all channels sorted on units then path
+    for chid in sorted(
+        chanspec.keys(), key=lambda x: (chanspec[x]["units"], chanspec[x]["path"])
+    ):
+        path = chanspec[chid]["path"]
+        unitstr = chanspec[chid]["units"]
+        if np.size(chandata[chid]) == 0:
+            continue
+        for tstamp, value in chandata[chid]:
+            try:
+                date = dt.datetime.fromtimestamp(
+                    tstamp / 1000.0, gettz(tsite["tz"])
+                ).isoformat(timespec="milliseconds")
+                print(
+                    f"{tstamp:<14d} {value:>12.7g} {unitstr:>6s}   ",
+                    f"{path:<30s}  {date:<30s}",
+                )
+            except IOError:
+                # 'Broken pipe' IOError when stdout is closed
+                pass
+
+
+def printStats(
+    rstats: bool,
+    title: str,
+    tmin: int,
+    tmax: int,
+    inttot: int,
+    intcnt: int,
+    tsite: dict,
+    chanspec: dict,
+    chandata: dict,
+):
+    """
+    print some statistics for each channel
+    """
+    #
+    # print a header for the stats
+    #
+    print("#")
+    print(f"# {title}")
+    print("#")
+    tstr = dt.datetime.now(gettz()).isoformat(timespec="seconds")
+    print(f"# CCS trending stats at {tstr}")
+    tdelta = dt.timedelta(seconds=(tmax / 1000 - tmin / 1000))
+    print(
+        f"# Data for {inttot} total seconds from {intcnt} intervals",
+        f" over {tdelta} (h:m:s) from:",
+    )
+
+    tstr = dt.datetime.fromtimestamp(tmin / 1000, gettz(tsite["tz"])).isoformat(
+        timespec="seconds"
+    )
+    print(f'#     tmin="{tstr}"')
+
+    tstr = dt.datetime.fromtimestamp(tmax / 1000, gettz(tsite["tz"])).isoformat(
+        timespec="seconds"
+    )
+    print(f'#     tmax="{tstr}"')
+
+    print(
+        f'# {"cnt":>4s} {"mean":>9s} {"median":>8s} {"stddev":>8s} {"min":>8s}',
+        f' {"max":>8s} {"d/dt 1/m":>11s}',
+        end="",
+    )
+    if rstats:
+        print(f'{"rmean":>8s} {"rmedian":>8s} {"rstddev":>8s}  ', end="")
+    print(f'  {"path":<40s} {"units":>6s}')
+
+    # loop over all channels sorted on units then path
+    for chid in sorted(
+        chanspec.keys(), key=lambda x: (chanspec[x]["units"], chanspec[x]["path"])
+    ):
+        path = chanspec[chid]["path"]
+        unitstr = chanspec[chid]["units"]
+        tstamp = chandata[chid]["tstamp"]
+        nelem = tstamp.size
+        if nelem > 0:
+            y = chandata[chid]["value"]
+            avg = np.mean(y)
+            med = np.median(y)
+            std = np.std(y)
+            npmin = np.min(y)
+            npmax = np.max(y)
+            if y.size > 5:
+                # silly but better than taking last value
+                npgrad = np.gradient(y, tstamp)
+                grad = 60 * 1000 * np.sum(npgrad[-4:-1]) / 4.0
+            else:
+                grad = math.nan
+            if rstats:
+                rmean, rmedian, rstd = stats.sigma_clipped_stats(y)
+        else:
+            avg = med = std = npmin = npmax = 0
+            grad = rmean = rmedian = rstd = 0
+        try:
+            print(
+                f"{nelem:>6g} {avg:>9.4g} {med:>8.4g} {std:>8.4g} ",
+                f"{npmin:>8.3g} {npmax:>8.3g} {grad:>11.3g}",
+                end="",
+            )
+            if rstats:
+                print(f"{rmean:>8.4g} {rmedian:>8.4g} {rstd:>8.4g}   ", end="")
+            print(f"  {path:<40s} {unitstr:>6s}")
+        except IOError:
+            # 'Broken pipe' IOError when stdout is closed
+            pass
 
 
 if __name__ == "__main__":
