@@ -7,6 +7,7 @@ import re
 import logging
 import collections
 import os.path
+import math
 import time
 import stat
 from datetime import datetime
@@ -19,7 +20,13 @@ from dateutil.parser import ParserError
 from dateutil.tz import gettz
 from dateutil.tz import tzutc
 from timezone_info import timezone_abbr
-import lsst_camera_data
+
+#  local imports
+try:
+    import lsst_camera_data as camdata
+except ImportError as e:
+    logging.error("Import failed: %s", e)
+    sys.exit(1)
 
 # constants? for lack of a better term (default to slac)
 # trendnetre = r"134\.79\.[0-9]*\.[0-9]*"
@@ -73,8 +80,8 @@ sites["ats"]["tz"] = "UTC"
 #
 sites["summit"] = dict()
 sites["summit"]["name"] = "summit"
-sites["summit"]["netregex"] = r"139\.229\.174\.[0-9]"
-sites["summit"]["server"] = "ccs-db01.cp.lsst.org"
+sites["summit"]["netregex"] = r"139\.229\.175\.76"
+sites["summit"]["server"] = "lsstcam-mcm.cp.lsst.org"
 sites["summit"]["port"] = 8080
 sites["summit"]["tz"] = "UTC"
 #
@@ -295,6 +302,7 @@ def get_trending_server(isite: str = None):
 
 def get_trending_server_from_xml(xmlfile: str):
     """
+    This is wrong and needs a fix
     The trending server is one of several in list of sites.
     The default ip address used to access google is checked and
     if it matches one of the known site networks, the server is
@@ -319,12 +327,6 @@ def get_trending_server_from_xml(xmlfile: str):
 
 def test_trending_server(site: str):
     """
-    The trending server is one of several in list of sites.
-    The default ip address used to access google is checked and
-    if it matches one of the known site networks, the server is
-    obtained from the list.  If it does not match then the assumption
-    is that localhost:8080 is connected via an ssh tunnel and we use that.
-
     returns valid service or None on failure
     """
     trending_server = sites[site]["server"]
@@ -939,13 +941,13 @@ def filter_raft_types(e2v: bool, itl: bool, science: bool, corner: bool, oflds: 
     """
     rafts_to_reject = []
     if e2v:
-        rafts_to_reject.extend(rafts_of_type["ITL"])
+        rafts_to_reject.extend(camdata.rafts_of_type["ITL"])
     if itl:
-        rafts_to_reject.extend(rafts_of_type["E2V"])
+        rafts_to_reject.extend(camdata.rafts_of_type["E2V"])
     if science:
-        rafts_to_reject.extend(rafts_of_type["CORNER"])
+        rafts_to_reject.extend(camdata.rafts_of_type["CORNER"])
     if corner:
-        rafts_to_reject.extend(rafts_of_type["SCIENCE"])
+        rafts_to_reject.extend(camdata.rafts_of_type["SCIENCE"])
     if rafts_to_reject:
         rids = []
         for chid in oflds:  # loop over paths
@@ -1013,14 +1015,14 @@ def get_xml_from_trending(
 ) -> list:
     """
     inputs:
-        tsite: dict of site info: name, server-ip, tz, ...
+        tsite: dict of site info: {name, server-ip, tz, ...}
         oflds: channels dict, {id:path}, to get data for
         intervals: list of disjoint (start, stop) times in milliseconds
         timebins: optlist.timebins  where None=>raw, 0=>auto, N=>N-bins
 
     output: responses[] as a list
 
-    CCS is pre-binned at 5m, 30m, or will rebin on-the-fly
+    CCS data is raw or pre-binned at 5m, 30m, or will rebin on-the-fly
     default is raw data, timebins triggers stat data
     query the rest server and place responses into a list
     join the ids requested as "id0&id=id1&id=id2..." for query
@@ -1035,10 +1037,18 @@ def get_xml_from_trending(
 
     for ival in intervals:  # only one interval per query allowed
         # if ival is too long, split into sequence of smaller intervals
-        # ival_split = math.ceil((ival[1] - ival[0])/ival_max_len)
-
-        res = query_rest_server(ival[0], ival[1], data_url, idstr, timebins)
-        responses.append(res)
+        # to reduce memory load on trending service
+        ival_split = math.ceil((ival[1] - ival[0]) / ival_max_len)
+        logging.debug("ival[1]= %d, ival[0]= %d", ival[1], ival[0])
+        logging.debug("ival split into %d segments", ival_split)
+        for seg_cnt in range(ival_split):
+            seg0 = ival[0] + seg_cnt * ival_max_len
+            seg1 = min(ival[0] + (seg_cnt + 1) * ival_max_len, ival[1])
+            logging.debug(
+                "using split interval (%d, %d) of %d segments", seg0, seg1, ival_split
+            )
+            res = query_rest_server(ival[0], ival[1], data_url, idstr, timebins)
+            responses.append(res)
     return responses
 
 
