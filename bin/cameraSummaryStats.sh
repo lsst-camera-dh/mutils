@@ -60,7 +60,7 @@ if [ $duration"XXX" == "XXX" ] ; then
 fi
 
 gawk 'BEGIN {printf("#%6s %-25.25s %7.7s %5.5s\n", "median", "path", "+/-%", "units");}'
-trender.py --dur ${duration} --stat -- "${regexes[@]}" |\
+trender.py --site summit --dur ${duration} --stat -- "${regexes[@]}" |\
     gawk '/^#/ {next;}; {printf("%7.3g %-25.25s %3d/%-3d %5.5s\n", $3, $8, ($3 ? 100.0*$6/$3 : 0.0), ($3 ? 100.0*$5/$3 : 0.0), $9);}' |\
     sort -r -k 2
 

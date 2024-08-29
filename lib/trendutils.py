@@ -1,6 +1,7 @@
 """
 Utility functions for CCS trending access
 """
+
 import sys
 import socket
 import re
@@ -80,7 +81,7 @@ sites["ats"]["tz"] = "UTC"
 #
 sites["summit"] = dict()
 sites["summit"]["name"] = "summit"
-sites["summit"]["netregex"] = r"139\.229\.175\.76"
+sites["summit"]["netregex"] = r"139\.229\..*"
 sites["summit"]["server"] = "lsstcam-mcm.cp.lsst.org"
 sites["summit"]["port"] = 8080
 sites["summit"]["tz"] = "UTC"
