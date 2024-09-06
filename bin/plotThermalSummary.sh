@@ -13,6 +13,8 @@ function usage {
     -t (use time averaged data, good on long queries)
     -p (only plot temps used in PID controls)
     -e echo command line only
+    -s save
+    -l <site>
     -v verbose output
 EOM
 exit 1
@@ -27,6 +29,7 @@ do
     e  ) echocmd="yes";;
     d  ) duration=$OPTARG;;
     t  ) timebins="yes";;
+    l  ) site=$OPTARG;;
     s  ) savePlot="yes";;
     p  ) pidonly="yes";;
     v  ) verbose="yes";;
@@ -86,6 +89,10 @@ if [ ${duration}"XXX" == "XXX" ] ; then
       duration=10m
 fi
 
+if [ ${site}"XXX" == "XXX" ] ; then
+      site=summit
+fi
+
 if [ $timebins ] ; then
       timebins='--timebins'
 fi
@@ -108,4 +115,4 @@ if [ $echocmd ] ; then
     exit 0
 fi
 
-trender.py --dpi 320 ${verbose} ${sarg} ${st} --dur $duration ${timebins} --title "CryoStat Thermal Summary" --layout 4x2 --plot --outside --reject "${badCCDrtds[@]}" --overlayregex -- "${regexes[@]}"
+trender.py --site $site --dpi 320 ${verbose} ${sarg} ${st} --dur $duration ${timebins} --title "CryoStat Thermal Summary" --layout 4x2 --plot --outside --reject "${badCCDrtds[@]}" --overlayregex -- "${regexes[@]}"

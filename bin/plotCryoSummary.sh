@@ -11,6 +11,7 @@ function usage {
     -t (use time averaged data, good on long queries)
     -s saveFileName
     -d <duration>  [default is 10m]
+    -l <site>
     -p <dpi>
     -c cryos (regex eg [02], default is . for all)
 EOM
@@ -27,6 +28,7 @@ do
     d  ) duration=$OPTARG;;
     c  ) cryos=$OPTARG;;
     t  ) timebins="yes";;
+    l  ) site=$OPTARG;;
     s  ) savefile=$OPTARG;;
     p  ) dpi=$OPTARG;;
     *  ) ${ECHO} "Unimplemented option chosen.";;   # Default.
@@ -49,18 +51,22 @@ if [ $cryos"XXX" == "XXX" ] ; then
 fi
 
 declare -a regexes
-regexes+=('^refrig/Cryo'${cryos}'/CompPower')
-regexes+=('^refrig/Cryo'${cryos}'/SuctionPrs')
-regexes+=('^refrig/Cryo'${cryos}'/DischrgPrs')
+regexes+=('^refrig1/Cryo'${cryos}'/CompPower')
+regexes+=('^refrig1/Cryo'${cryos}'/SuctionPrs')
+regexes+=('^refrig1/Cryo'${cryos}'/DischrgPrs')
 regexes+=('^hex/Cryo'${cryos}'/.*C3.*Tmp')
 regexes+=('^hex/Cryo'${cryos}'/.*C4.*Tmp')
 regexes+=('^hex/Cryo'${cryos}'/EvapExitTmp')
 regexes+=('^hex/Cryo'${cryos}'/HexRtrnTmp')
 regexes+=('^(thermal/Cryo_Temp/CYP-RTD-(02|12|42|52)|fo.*/R[0134]2/Reb1/S11/Temp)')
-#regexes+=('^[tf].*[le]/.*(C.*Total_P$|RebTotalPower$)')
+regexes+=('^[tf].*[le]/.*(C.*Total_P$|RebTotalPower$)')
 
 if [ $duration"XXX" == "XXX" ] ; then
       duration=10m
+fi
+
+if [ $site"XXX" == "XXX" ] ; then
+      site=summit
 fi
 
 sv=
@@ -77,5 +83,5 @@ if [ $dpi"XXX" != "XXX" ] ; then
       dpis="--dpi ${dpi}"
 fi
 
-trender.py ${st} ${sv} ${dpis} --dur ${duration} ${timebins} --title "CryoRefrig Summary" --plot --outside --overlayregex -- "${regexes[@]}"
+trender.py --site $site --plot ${st} ${sv} ${dpis} --dur ${duration} ${timebins} --title "CryoRefrig Summary" --outside --overlayregex -- "${regexes[@]}"
 

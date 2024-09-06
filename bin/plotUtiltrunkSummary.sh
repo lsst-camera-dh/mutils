@@ -73,5 +73,5 @@ if [ $doecho ] ; then
     exit
 fi
 
-trender.py --dpi 140 ${st} ${sv} --dur ${duration} ${timebins} --title "Utiltrunk Thermal Summary" --plot --layout 4x2 --outside --overlayregex -- "${regexes[@]}"
+trender.py --dpi 300 ${st} ${sv} --dur ${duration} ${timebins} --title "Utiltrunk Thermal Summary" --plot --layout 4x2 --outside --overlayregex -- "${regexes[@]}"
 
