@@ -4,12 +4,6 @@
 #-------------------------------------
 #
 #- Python that works with mutils (may need updates)
-#PATH=/gpfs/slac/lsst/fs2/u1/dh/software/centos7-gcc48/bin:${PATH}
-#PATH=/gpfs/slac/lsst/fs2/u1/devel/marshall/cfitsio/bin:${PATH}
-#PATH=/gpfs/slac/lsst/fs2/u1/devel/marshall/anaconda3-2023.03/bin:${PATH}
-#PATH=/gpfs/slac/lsst/fs2/u1/devel/marshall/mutils/bin:${PATH}
-#export PATH
-
 function usage {
   cat <<-EOM
   Description: Plot CCD Power On's as they occur by monitoring the log file (arg1)

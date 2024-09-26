@@ -131,6 +131,7 @@ def parse_args():
         action="store_true",
         help="Print additional robust stats per channel",
     )
+    parser.add_argument("--nosort", action="store_true", help="do not sort text based outputs")
     #
     # Plotting specifications
     #
@@ -379,7 +380,7 @@ def trender():
     # print to stdout a text dump of the data, in time order per channel
     #
     if optlist.text:
-        printText(optlist.title, tmin, tmax, inttot, intcnt, tsite, chanspec, chandata)
+        printText(optlist.nosort, optlist.title, tmin, tmax, inttot, intcnt, tsite, chanspec, chandata)
         sys.exit()
 
     # print some statistics for each channel
@@ -387,6 +388,7 @@ def trender():
     if optlist.stats:
         printStats(
             optlist.rstats,
+            optlist.nosort,
             optlist.title,
             tmin,
             tmax,
@@ -629,8 +631,9 @@ def trender():
                     if not labeled:  # label first valid interval, save color
                         mlabel = "{}".format(chanspec[chid]["path"])
                         if optlist.mjd is None:  # use dates
-                            line = ax.plot_date(
-                                mds, y, fmt, label=mlabel, tz=gettz(tsite["tz"])
+                            ax.xaxis.axis_date(tz=gettz(tsite["tz"]))
+                            line = ax.plot(
+                                mds, y, fmt, label=mlabel,
                             )
                         else:
                             mjd = Time(mds, format="plot_date").mjd - float(mjdoff)
@@ -640,13 +643,13 @@ def trender():
                         labeled = True
                     else:  # no label on later intervals, use saved color
                         if optlist.mjd is None:  # use dates
-                            line = ax.plot_date(
+                            ax.xaxis.axis_date(tz=gettz(tsite["tz"]))
+                            line = ax.plot(
                                 mds,
                                 y,
                                 fmt,
                                 color=mcolor,
                                 label=None,
-                                tz=gettz(tsite["tz"]),
                             )
                         else:
                             mjd = Time(mds, format="plot_date").mjd - float(mjdoff)
@@ -804,6 +807,7 @@ def trender():
 
 
 def printText(
+    nosort: bool,
     title: str,
     tmin: int,
     tmax: int,
@@ -841,9 +845,12 @@ def printText(
         f"{'channel CCS path':<30s}  {'iso-8601 Date':<30s}",
     )
     # loop over all channels sorted on units then path
-    for chid in sorted(
-        chanspec.keys(), key=lambda x: (chanspec[x]["units"], chanspec[x]["path"])
-    ):
+    if nosort:
+        key_list = chanspec.keys()
+    else:
+        key_list = sorted( chanspec.keys(), key=lambda x: (chanspec[x]["units"], chanspec[x]["path"]))
+
+    for chid in key_list:
         path = chanspec[chid]["path"]
         unitstr = chanspec[chid]["units"]
         if np.size(chandata[chid]) == 0:
@@ -864,6 +871,7 @@ def printText(
 
 def printStats(
     rstats: bool,
+    nosort: bool,
     title: str,
     tmin: int,
     tmax: int,
@@ -910,9 +918,13 @@ def printStats(
     print(f'  {"path":<40s} {"units":>6s}')
 
     # loop over all channels sorted on units then path
-    for chid in sorted(
-        chanspec.keys(), key=lambda x: (chanspec[x]["units"], chanspec[x]["path"])
-    ):
+
+    if nosort:
+        key_list = chanspec.keys()
+    else:
+        key_list = sorted( chanspec.keys(), key=lambda x: (chanspec[x]["units"], chanspec[x]["path"]))
+
+    for chid in key_list:
         path = chanspec[chid]["path"]
         unitstr = chanspec[chid]["units"]
         tstamp = chandata[chid]["tstamp"]

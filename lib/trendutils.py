@@ -74,7 +74,7 @@ sites["lab1tunnel"]["tz"] = gettz().tzname(datetime.now())
 #
 sites["ats"] = dict()
 sites["ats"]["name"] = "ats"
-sites["ats"]["netregex"] = r"139\.229\.175\.[0-9]"
+sites["ats"]["netregex"] = r"139\.229\.175\.242"
 sites["ats"]["server"] = "auxtel-mcm.cp.lsst.org"
 sites["ats"]["port"] = 8080
 sites["ats"]["tz"] = "UTC"

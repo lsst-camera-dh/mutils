@@ -49,4 +49,4 @@ if [ $duration"XXX" == "XXX" ] ; then
       duration=10m
 fi
 
-trender.py ${st} --dpi 300 --dur $duration --title "Raft Summary: ${1}" --plot --layout 4x2 --outside --overlayregex -- "${regexes[@]}"
+trender.py --deb ${st} --dpi 200 --dur $duration --title "Raft Summary: ${1}" --plot --layout 4x2 --outside --overlayregex -- "${regexes[@]}"
