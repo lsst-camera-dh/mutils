@@ -48,7 +48,6 @@ GOPTIONS='{printf("%7.3g %-25.25s %3d/%-3d %5.5s\n", $3, $8, ($3 ? 100.0*$6/$3 :
 printf "#%6s %-25.25s %7.7s %5.5s\n" "median" "path" "+/-%" "units"
 printf "#\n"
 
-
 # vacuum
 printf "# vacuum\n"
 declare -a regexes
@@ -58,6 +57,28 @@ regexes+=('vacuum/HX/[TF].*Vac')
 regexes+=('vacuum/Cryo/TurboP.*')
 regexes+=('vacuum/HX/TurboP.*')
 regexes+=('vacuum/Inst/PumpCartPressure')
+$TRENDER ${OPTIONS} "${regexes[@]}" | $GAWK "/^#/ {next;}; ${GOPTIONS}"
+unset regexes
+printf "#\n"
+
+# refrig 
+printf "# refrig\n"
+declare -a regexes
+regexes+=('chiller1/Chiller/FluidTemperature')
+regexes+=('chiller1/Chiller/CoolPercentage')
+regexes+=('chiller1/Maq20/Stg2DeSuHtrOut')
+regexes+=('chiller1/Maq20/Glyc(Chiller.*|InputFlow)')
+regexes+=('^refrig/Cryo.*/DischrgPrs')
+regexes+=('^hex/Cryo.*/HexRtrnTmp')
+$TRENDER ${OPTIONS} "${regexes[@]}" | $GAWK "/^#/ {next;}; ${GOPTIONS}"
+unset regexes
+printf "#\n"
+
+# Body
+printf "# Body\n"
+declare -a regexes
+regexes+=('utiltrunk/Body/Shtr.*AirVel')
+regexes+=('utiltrunk/Body/(A|Dome|Shtr|VPP|Chgr|L2XM|CamHousXM).*emp')
 $TRENDER ${OPTIONS} "${regexes[@]}" | $GAWK "/^#/ {next;}; ${GOPTIONS}"
 unset regexes
 printf "#\n"
@@ -74,30 +95,13 @@ $TRENDER ${OPTIONS} "${regexes[@]}" | $GAWK "/^#/ {next;}; ${GOPTIONS}"
 unset regexes
 printf "#\n"
 
-# refrig 
-printf "# refrig\n"
-declare -a regexes
-regexes+=('chiller1/Chiller/FluidTemperature')
-regexes+=('chiller1/Chiller/CoolPercentage')
-regexes+=('chiller1/Maq20/Stg2DeSuHtrOut')
-regexes+=('^refrig/Cryo.*/DischrgPrs')
-regexes+=('^hex/Cryo.*/HexRtrnTmp')
-$TRENDER ${OPTIONS} "${regexes[@]}" | $GAWK "/^#/ {next;}; ${GOPTIONS}"
-unset regexes
-printf "#\n"
-
 # UT
 printf "# UT\n"
 declare -a regexes
 regexes+=('quadbox/PDU_[24].*/.*_T$')
-regexes+=('^utiltrunk/UT/([AF].*Temp|Cool.*|FanSpeed)')
+regexes+=('^utiltrunk/UT/([AF].*Temp|Cool[FP].*|FanSpeed)')
 $TRENDER ${OPTIONS} "${regexes[@]}" | $GAWK "/^#/ {next;}; ${GOPTIONS}"
 unset regexes
 printf "#\n"
 
-# Body
-printf "# Body\n"
-declare -a regexes
-#$TRENDER ${OPTIONS} "${regexes[@]}" | $GAWK "/^#/ {next;}; ${GOPTIONS}"
-unset regexes
-printf "#\n"
+
