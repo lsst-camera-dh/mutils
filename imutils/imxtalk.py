@@ -3,8 +3,6 @@
 Calculate xtalk coefs for a single CCD with N segments
 in the form of a NxN matrix
 """
-import os
-import sys
 import re
 import argparse
 import logging
@@ -17,17 +15,10 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 from scipy.stats import binned_statistic
 
-
-# put parent directory into sys.path
-bp = os.path.dirname(os.path.realpath(__file__)).split(os.sep)
-modpath = os.sep.join(bp[:-1] + ["lib"])
-sys.path.insert(0, modpath)
-
-#  local imports
 try:
-    import imutils as iu
-    import mutils as mu
-    import plotutils as pu
+    import mutils.imutils as iu
+    import mutils.mutils as mu
+    import mutils.plotutils as pu
 except ImportError as e:
     logging.error("Import failed: %s", e)
     exit(1)

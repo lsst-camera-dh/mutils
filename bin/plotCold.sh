@@ -77,9 +77,9 @@ if [ $timebins ] ; then
 fi
 
 if [ $echocmd ] ; then
-      echo trender.py ${verbose} ${st} ${sv} --dur ${duration} ${timebins} --title "Cold Summary" --plot --outside --overlayregex -- "${regexes[@]}"
+      echo trender ${verbose} ${st} ${sv} --dur ${duration} ${timebins} --title "Cold Summary" --plot --outside --overlayregex -- "${regexes[@]}"
       exit
 fi
 
-trender.py --layout 6x2 ${verbose} ${st} ${sv} --dur ${duration} ${timebins} --title "Cold Thermal Controls Summary" --plot --outside --overlayregex -- "${regexes[@]}"
+trender --layout 6x2 ${verbose} ${st} ${sv} --dur ${duration} ${timebins} --title "Cold Thermal Controls Summary" --plot --outside --overlayregex -- "${regexes[@]}"
 

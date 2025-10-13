@@ -9,13 +9,13 @@ import re
 import sys
 
 # put ../lib directory into sys.path
-bp = os.path.dirname(os.path.realpath(__file__)).split(os.sep)
-modpath = os.sep.join(bp[:-1] + ['lib'])
-sys.path.insert(0, modpath)
+# bp = os.path.dirname(os.path.realpath(__file__)).split(os.sep)
+# modpath = os.sep.join(bp[:-1] + ['lib'])
+# sys.path.insert(0, modpath)
 
 #  local imports
 try:
-    import trendutils as tu
+    import mutils.trendutils as tu
 except ImportError as e:
     logging.error('Import failed: %s', e)
     exit(1)

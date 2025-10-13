@@ -2,39 +2,28 @@
 """ trending data app: gets specified channels for requested time period
 """
 import re
-import os
+import sys
 import argparse
 import textwrap
 import logging
-import sys
 import copy
 import math
 import datetime as dt
-from lxml import etree
-from dateutil.tz import gettz
+
 import numpy as np
-from astropy import stats
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdate
+from dateutil.tz import gettz
+from astropy import stats
 from astropy.time import Time
-import astropy.units as au
 
-# put ../lib directory into sys.path
-bp = os.path.dirname(os.path.realpath(__file__)).split(os.sep)
-modpath = os.sep.join(bp[:-1] + ["lib"])
-sys.path.insert(0, modpath)
-
-#  local imports
 try:
-    import trendutils as tu
-    import mutils as mu
-    import plotutils as pu
+    import mutils.trendutils as tu
+    import mutils.mutils as mu
+    import mutils.plotutils as pu
 except ImportError as e:
     logging.error("Import failed: %s", e)
     sys.exit(1)
-
-if sys.version_info[0] < 3 or sys.version_info[1] < 7:
-    raise Exception("Must be using Python >=3.7")
 
 
 def parse_args():

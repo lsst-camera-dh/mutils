@@ -1,20 +1,10 @@
 #!/usr/bin/env python3
 
-import os
-import sys
 import argparse
-import textwrap
 import logging
 
-# put parent directory into sys.path
-bp = os.path.dirname(os.path.realpath(__file__)).split(os.sep)
-modpath = os.sep.join(bp[:-1] + ['lib'])
-sys.path.insert(0, modpath)
-
-#  local imports
 try:
-    import trendutils as tu
-    import mutils as mu
+    import mutils.trendutils as tu
 except ImportError as e:
     logging.error('Import failed: %s', e)
     exit(1)
@@ -49,10 +39,10 @@ def main():
                             level=logging.INFO)
 
     if optlist.maxidle:
-        channel_file = tu.update_trending_channels_xml(
+        channel_file = tu.update_trending_channels_xml("summit",
             86400 * optlist.maxidle)
     else:
-        channel_file = tu.update_trending_channels_xml()
+        channel_file = tu.update_trending_channels_xml("summit")
     chfile = open(channel_file, mode='rb')
     logging.debug('got channel_file')
     channels_xml = chfile.read()

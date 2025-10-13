@@ -88,6 +88,6 @@ if [ $pidonly ] ; then
     badCCDrtds+=( ${nonPIDrtds[@]} )
 fi
 
-trender.py ${st} --dur $duration ${timebins} --title "Focal Plane CCD Temps" --plot --outside --reject "${badCCDrtds[@]}" --overlayregex -- "${regexes[@]}"
+trender ${st} --dur $duration ${timebins} --title "Focal Plane CCD Temps" --plot --outside --reject "${badCCDrtds[@]}" --overlayregex -- "${regexes[@]}"
 
 

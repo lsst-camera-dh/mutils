@@ -14,8 +14,8 @@ import matplotlib.pyplot as plt
 from astropy.convolution import convolve, Gaussian1DKernel
 
 # local imports
-import imutils as iu
-import mutils as mu
+import mutils.imutils as iu
+import mutils.mutils as mu
 
 
 def update_rcparams():

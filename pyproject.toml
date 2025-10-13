@@ -1,0 +1,52 @@
+[project]
+name = "mutils"
+version = "0.1.0"
+description = "A collection of command line utilities for working with fits images and CCS trending data."
+authors = [{ name = "Stuart Marshall", email = "marshall@slac.stanford.edu" }]
+license = { file = "LICENSE.txt" }
+readme = "README.md"
+requires-python = ">=3.9"
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
+    "Programming Language :: Python :: 3",
+    "Topic :: Scientific/Engineering :: Astronomy",
+]
+dependencies = [
+    "astropy",
+    "numpy",
+    "scipy",
+    "matplotlib",
+    "requests",
+    "scikit-learn",
+    "lxml",
+    "python-dateutil",
+]
+
+
+[project.scripts]
+# imutils
+hduorder = "imutils.hduorder:main"
+imarith = "imutils.imarith:main"
+imcombine = "imutils.imcombine:imcombine"
+imfft = "imutils.imfft:imfft"
+imhead = "imutils.imhead:imhead"
+imhist = "imutils.imhist:imhist"
+implot = "imutils.implot:implot"
+implot2 = "imutils.implot2:implot"
+imstat = "imutils.imstat:imstat"
+imxtalk = "imutils.imxtalk:imxtalk"
+iqstat = "imutils.iqstat:iqstat"
+mktitlestr = "imutils.mktitlestr:main"
+
+# trendutils
+printXMLStructure = "trendutils.printXMLStructure:main"
+trender = "trendutils.trender:trender"
+trendingChannels = "trendutils.trendingChannels:main"
+trendmonitor = "trendutils.trendmonitor:main"
+
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["mutils*", "imutils*", "trendutils*"]

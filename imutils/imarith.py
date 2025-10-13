@@ -10,18 +10,13 @@ import logging
 import textwrap
 import datetime
 import os.path
-from astropy.io import fits
+
 import numpy as np
+from astropy.io import fits
 
-# put parent directory into sys.path
-bp = os.path.dirname(os.path.realpath(__file__)).split(os.sep)
-modpath = os.sep.join(bp[:-1] + ["lib"])
-sys.path.insert(0, modpath)
-
-#  local imports
 try:
-    import imutils as iu
-    import mutils as mu
+    import mutils.imutils as iu
+    import mutils.mutils as mu
 except ImportError as e:
     logging.error("Import failed: %s", e)
     sys.exit(1)
@@ -289,9 +284,13 @@ def get_operand_type(operand):
     return operandtypes["list"]
 
 
-if __name__ == "__main__":
+def main():
     optlist = parse_args()
     mu.init_logging(optlist.debug)
     mu.init_warnings()
     logging.debug(f"optlist={optlist}")
     imarith(optlist)
+
+
+if __name__ == '__main__':
+    main()

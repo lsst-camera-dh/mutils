@@ -13,16 +13,10 @@ from astropy.io import fits
 import numpy as np
 import matplotlib.pyplot as plt
 
-# put ../lib directory into sys.path
-bp = os.path.dirname(os.path.realpath(__file__)).split(os.sep)
-modpath = os.sep.join(bp[:-1] + ["lib"])
-sys.path.insert(0, modpath)
-
-#  local imports
 try:
-    import mutils as mu
-    import plotutils as pu
-    import imutils as iu
+    import mutils.mutils as mu
+    import mutils.plotutils as pu
+    import mutils.imutils as iu
 except ImportError as e:
     logging.error("Import failed: %s", e)
     sys.exit(1)

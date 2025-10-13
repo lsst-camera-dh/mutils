@@ -3,23 +3,14 @@
 Produce a glob-like pattern from a list of files to indicate
 the file set used (nominally to produce a title string)
 """
-import os
-import sys
 import re
 import argparse
 import logging
 import textwrap
 
-# put parent directory into sys.path
-bp = os.path.dirname(os.path.realpath(__file__)).split(os.sep)
-modpath = os.sep.join(bp[:-1] + ['lib'])
-sys.path.insert(0, modpath)
-
-#  local imports
 try:
-    import trendutils as tu
-    import mutils as mu
-    import imutils as iu
+    import mutils.mutils as mu
+    import mutils.imutils as iu
 except ImportError as e:
     logging.error('Import failed: %s', e)
     exit(1)

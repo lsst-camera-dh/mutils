@@ -2,9 +2,9 @@
 Utility functions for CCS trending access
 """
 
+import re
 import sys
 import socket
-import re
 import logging
 import collections
 import os.path
@@ -12,22 +12,17 @@ import math
 import time
 import stat
 from datetime import datetime
+
 import requests
+import numpy as np
 from lxml import etree
 import dateutil.parser as dp
-import numpy as np
-
 from dateutil.parser import ParserError
 from dateutil.tz import gettz
 from dateutil.tz import tzutc
-from timezone_info import timezone_abbr
 
-#  local imports
-try:
-    import lsst_camera_data as camdata
-except ImportError as e:
-    logging.error("Import failed: %s", e)
-    sys.exit(1)
+import mutils.lsst_camera_data as camdata
+from mutils.timezone_info import timezone_abbr
 
 # constants? for lack of a better term (default to slac)
 # trendnetre = r"134\.79\.[0-9]*\.[0-9]*"

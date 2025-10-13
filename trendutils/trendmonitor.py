@@ -2,7 +2,6 @@
 """ trending snapshot report generator
 """
 # code to illustrate parsing of XML files
-# importing the required modules
 import os
 import sys
 import re
@@ -12,20 +11,11 @@ import time
 import requests
 from lxml import etree
 
-# put parent directory into sys.path
-bp = os.path.dirname(os.path.realpath(__file__)).split(os.sep)
-modpath = os.sep.join(bp[:-1] + ["lib"])
-sys.path.insert(0, modpath)
-
-#  local imports
 try:
-    import trendutils as tu
+    import mutils.trendutils as tu
 except ImportError as e:
     logging.error("Import failed: %s", e)
     exit(1)
-
-if sys.version_info[0] < 3:
-    raise Exception("Must be using Python 3")
 
 
 def parse_args():

@@ -9,13 +9,11 @@ import os.path
 from astropy.io import fits
 from astropy import stats
 from astropy import wcs
-from astropy.convolution import convolve, Gaussian1DKernel, interpolate_replace_nans
+from astropy.convolution import convolve, Gaussian1DKernel
 import numpy as np
-import math
-from scipy.ndimage import minimum_filter1d, median_filter, percentile_filter
+from scipy.ndimage import minimum_filter1d, percentile_filter
 from scipy import sparse
 from scipy.sparse.linalg import spsolve
-from scipy.interpolate import UnivariateSpline
 
 
 def create_output_hdulist(hdulisti: fits.HDUList, argv: list) -> fits.HDUList:

@@ -55,6 +55,6 @@ if [ $timebins ] ; then
       timebins='--timebins'
 fi
 
-#echo trender.py --site ats ${st} --dur $duration ${timebins} --title \"Reb Summary: ${1}\" --plot --layout 3x2 --outside --overlayregex -- \"${regexes[@]}\"
-trender.py --site ats ${st} --dur $duration ${timebins} --title "Reb Summary: ${1}" --plot --layout 3x2 --outside --overlayregex -- "${regexes[@]}"
+#echo trender --site ats ${st} --dur $duration ${timebins} --title \"Reb Summary: ${1}\" --plot --layout 3x2 --outside --overlayregex -- \"${regexes[@]}\"
+trender --site ats ${st} --dur $duration ${timebins} --title "Reb Summary: ${1}" --plot --layout 3x2 --outside --overlayregex -- "${regexes[@]}"
 

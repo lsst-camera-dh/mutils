@@ -72,9 +72,9 @@ if [ $timebins ] ; then
 fi
 
 if [ $doecho ] ; then
-    echo trender.py ${st} ${sv} --dur ${duration} ${timebins} --title "Refrig Summary" --plot --layout 8x2 --outside --overlayregex -- "${regexes[@]}"
+    echo trender ${st} ${sv} --dur ${duration} ${timebins} --title "Refrig Summary" --plot --layout 8x2 --outside --overlayregex -- "${regexes[@]}"
     exit
 fi
 
-trender.py ${st} ${sv} --dur ${duration} ${timebins} --title "Refrig Summary" --plot --layout 8x2 --outside --overlayregex -- "${regexes[@]}"
+trender ${st} ${sv} --dur ${duration} ${timebins} --title "Refrig Summary" --plot --layout 8x2 --outside --overlayregex -- "${regexes[@]}"
 

@@ -4,21 +4,13 @@ Create new copy of MEF fits file with ImageHDU order permuted
 according to command line options.
 """
 
-import os
-import sys
 import argparse
+import logging
 from random import shuffle
 from astropy.io import fits
 
-
-# put parent directory into sys.path
-bp = os.path.dirname(os.path.realpath(__file__)).split(os.sep)
-modpath = os.sep.join(bp[:-1] + ['lib'])
-sys.path.insert(0, modpath)
-
-#  local imports
 try:
-    import mutils as mu
+    import mutils.mutils as mu
 except ImportError as e:
     logging.error('Import failed: %s', e)
     exit(1)
@@ -106,6 +98,10 @@ def hdu_writer(opts):
     hdulist.close()
 
 
-if __name__ == '__main__':
+def main():
     optlist = parse_args()
     hdu_writer(optlist)
+
+
+if __name__ == '__main__':
+    main()

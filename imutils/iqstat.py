@@ -14,16 +14,9 @@ from astropy import stats
 from astropy.table import Table
 import numpy as np
 
-
-# put parent directory into sys.path
-bp = os.path.dirname(os.path.realpath(__file__)).split(os.sep)
-modpath = os.sep.join(bp[:-1] + ["lib"])
-sys.path.insert(0, modpath)
-
-#  local imports
 try:
-    import imutils as iu
-    import mutils as mu
+    import mutils.imutils as iu
+    import mutils.mutils as mu
 except ImportError as e:
     logging.error("Import failed: %s", e)
     sys.exit(1)

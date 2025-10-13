@@ -53,4 +53,4 @@ if [ $savePlot ] ; then
     sarg=" --save /tmp/"$(echo -n $1 | sed 's?/?_?g')"_powerCCDsOn.png"
 fi
 
-trender.py --lay 3x1 --out ${sarg} --start "${2}" --title "powerCCDsOn:${1}" --overlayreg --plot --dur ${duration} --fmt "o-" -- "${regexes[@]}"
+trender --lay 3x1 --out ${sarg} --start "${2}" --title "powerCCDsOn:${1}" --overlayreg --plot --dur ${duration} --fmt "o-" -- "${regexes[@]}"

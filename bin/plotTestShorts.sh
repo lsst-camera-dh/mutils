@@ -58,4 +58,4 @@ else
     site="localhost"
 fi
 
-trender.py --site ${site} --lay 4x1 --out ${sarg} --start "${2}" --title "testCCDShorts:${1}" --overlayreg --plot --dur $duration --fmt 'o-' -- "${regexes[@]}"
+trender --site ${site} --lay 4x1 --out ${sarg} --start "${2}" --title "testCCDShorts:${1}" --overlayreg --plot --dur $duration --fmt 'o-' -- "${regexes[@]}"

@@ -83,5 +83,5 @@ if [ $dpi"XXX" != "XXX" ] ; then
       dpis="--dpi ${dpi}"
 fi
 
-trender.py --site $site --plot ${st} ${sv} ${dpis} --dur ${duration} ${timebins} --title "CryoRefrig Summary" --outside --overlayregex -- "${regexes[@]}"
+trender --site $site --plot ${st} ${sv} ${dpis} --dur ${duration} ${timebins} --title "CryoRefrig Summary" --outside --overlayregex -- "${regexes[@]}"
 

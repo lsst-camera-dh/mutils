@@ -40,7 +40,7 @@ if [ $duration"XXX" == "XXX" ] ; then
       duration=10m
 fi
 
-TRENDER=trender.py
+TRENDER=trender
 OPTIONS="--site summit --dur ${duration} --stat --nosort -- "
 GAWK=gawk
 GOPTIONS='{printf("%7.3g %-25.25s %3d/%-3d %5.5s\n", $3, $8, ($3 ? 100.0*$6/$3 : 0.0), ($3 ? 100.0*$5/$3 : 0.0), $9);}'
