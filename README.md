@@ -2,6 +2,47 @@
 
 This is a collection of command line utilities for working with fits images and CCS trending data.
 
+## Installation
+
+### With uv
+
+1. [Install `uv`](https://docs.astral.sh/uv/getting-started/installation/)
+    ```
+    curl -LsSf https://astral.sh/uv/install.sh | sh
+    ```
+2. Create virtual env
+    ```
+    uv venv
+    source .venv/bin/activate
+    ```
+3. Install `mutils`
+    ```
+    uv pip install git+https://github.com/lsst-camera-dh/mutils.git@uv-installable
+    ```
+
+All executables can be run with
+```
+uv run <script_name>
+```
+e.g.
+```
+uv run trender --fmt 'o' --lay 4x1 --site summit --plot --dur 6h --dpi 300 --overlayreg 'thermal/C.*/A.*' 'chiller1/Chiller/FluidTemperature' 'chiller1/Chiller/FlowRate' 'thermal/Trim.*/CryoTotal_P'
+```
+
+To mimic the old behavior of `trender.py`, one could use an alias `alias 'trender.py'='uv run trender'`
+
+### With normal pip
+
+1. Create a virtual env
+    ```
+    python -m venv .venv
+    source .venv/bin/activate
+    ```
+2. Install `mutils`
+    ```
+    pip install git+https://github.com/lsst-camera-dh/mutils.git@uv-installable
+    ```
+
 ## Command Line Utilities
 
 These command line applications are written in python and rely mainly on astropy, numpy and matplotlib to make plots for FITS imagesand time series data from the CCS trending database.  They generally have a usage message obtained by using the '--help' option.
