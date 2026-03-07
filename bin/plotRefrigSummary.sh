@@ -76,5 +76,5 @@ if [ $doecho ] ; then
     exit
 fi
 
-trender.py ${st} ${sv} --dur ${duration} ${timebins} --title "Refrig Summary" --plot --layout 8x2 --outside --overlayregex -- "${regexes[@]}"
+trender.py --site summit ${st} ${sv} --dur ${duration} ${timebins} --title "Refrig Summary" --plot --layout 8x2 --outside --overlayregex -- "${regexes[@]}"
 

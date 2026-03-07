@@ -21,7 +21,7 @@ exit 1
 #
 duration=
 savefile=
-while getopts "htd:s:c:p:" Option
+while getopts "htd:s:c:p:l:" Option
 do
   case $Option in
     h  ) usage;;
@@ -51,9 +51,10 @@ if [ $cryos"XXX" == "XXX" ] ; then
 fi
 
 declare -a regexes
-regexes+=('^refrig1/Cryo'${cryos}'/CompPower')
-regexes+=('^refrig1/Cryo'${cryos}'/SuctionPrs')
-regexes+=('^refrig1/Cryo'${cryos}'/DischrgPrs')
+regexes+=('^refrig2/Cryo'${cryos}'/CompPower')
+regexes+=('^refrig2/Cryo'${cryos}'/SuctionPrs')
+regexes+=('^refrig2/Cryo'${cryos}'/DischrgPrs')
+regexes+=('^refrig2/Cryo'${cryos}'/DischrgTmp_P')
 regexes+=('^hex/Cryo'${cryos}'/.*C3.*Tmp')
 regexes+=('^hex/Cryo'${cryos}'/.*C4.*Tmp')
 regexes+=('^hex/Cryo'${cryos}'/EvapExitTmp')

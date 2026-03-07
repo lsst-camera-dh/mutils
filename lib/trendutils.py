@@ -54,6 +54,7 @@ sites["slac"]["netregex"] = r"134\.79\.[0-9]*\.[0-9]*"
 sites["slac"]["server"] = "lsst-mcm.slac.stanford.edu"
 sites["slac"]["port"] = 8080
 sites["slac"]["tz"] = "America/Los_Angeles"
+sites["slac"]["rest_data_path"] = "/rest/data/dataserver"
 #
 sites["lab1"] = dict()
 sites["lab1"]["name"] = "lab1"
@@ -62,6 +63,7 @@ sites["lab1"]["netregex"] = r"999.999.999.999"  # never matches
 sites["lab1"]["server"] = "rddev101.slac.stanford.edu"
 sites["lab1"]["port"] = 8080
 sites["lab1"]["tz"] = gettz().tzname(datetime.now())
+sites["lab1"]["rest_data_path"] = "/rest/data/dataserver"
 #
 sites["lab1tunnel"] = dict()
 sites["lab1tunnel"]["name"] = "lab1tunnel"
@@ -71,6 +73,7 @@ sites["lab1tunnel"]["netregex"] = r"999.999.999.999"  # never matches
 sites["lab1tunnel"]["server"] = "localhost"
 sites["lab1tunnel"]["port"] = 8081
 sites["lab1tunnel"]["tz"] = gettz().tzname(datetime.now())
+sites["lab1tunnel"]["rest_data_path"] = "/rest/data/dataserver"
 #
 sites["ats"] = dict()
 sites["ats"]["name"] = "ats"
@@ -78,6 +81,15 @@ sites["ats"]["netregex"] = r"139\.229\.175\.242"
 sites["ats"]["server"] = "auxtel-mcm.cp.lsst.org"
 sites["ats"]["port"] = 8080
 sites["ats"]["tz"] = "UTC"
+sites["ats"]["rest_data_path"] = "/rest/data/dataserver"
+#
+sites["ats-efd"] = dict()
+sites["ats-efd"]["name"] = "ats-efd"
+sites["ats-efd"]["netregex"] = r"139\.229\.175\.242"
+sites["ats-efd"]["server"] = "auxtel-mcm.cp.lsst.org"
+sites["ats-efd"]["port"] = 8080
+sites["ats-efd"]["tz"] = "UTC"
+sites["ats-efd"]["rest_data_path"] = "/efd-rest/data/dataserver"
 #
 sites["summit"] = dict()
 sites["summit"]["name"] = "summit"
@@ -85,6 +97,15 @@ sites["summit"]["netregex"] = r"139\.229\..*"
 sites["summit"]["server"] = "lsstcam-mcm.cp.lsst.org"
 sites["summit"]["port"] = 8080
 sites["summit"]["tz"] = "UTC"
+sites["summit"]["rest_data_path"] = "/rest/data/dataserver"
+#
+sites["summit-efd"] = dict()
+sites["summit-efd"]["name"] = "summit-efd"
+sites["summit-efd"]["netregex"] = r"139\.229\..*"
+sites["summit-efd"]["server"] = "lsstcam-mcm.cp.lsst.org"
+sites["summit-efd"]["port"] = 8080
+sites["summit-efd"]["tz"] = "UTC"
+sites["summit-efd"]["rest_data_path"] = "/efd-rest/data/dataserver"
 #
 sites["comcam"] = dict()
 sites["comcam"]["name"] = "comcam"
@@ -92,6 +113,7 @@ sites["comcam"]["netregex"] = r"139\.229\.150\.[0-9]"
 sites["comcam"]["server"] = "comcam-db01.cp.lsst.org"
 sites["comcam"]["port"] = 8080
 sites["comcam"]["tz"] = "UTC"
+sites["comcam"]["rest_data_path"] = "/rest/data/dataserver"
 #
 # this should be last and matches anything else
 # requires a local db or ssh tunnel to the actual server
@@ -150,13 +172,14 @@ def get_all_channels(site: str, maxidle: int = -1):
     """
     trending_server = sites[site]["server"]
     trending_port = sites[site]["port"]
+    trending_path = sites[site]["rest_data_path"]
 
-    listpathroot = "/rest/data/dataserver/listchannels?maxIdleSeconds="
+    listpathroot = f"{trending_path}/listchannels?maxIdleSeconds="
     if maxidle:
-        listpath = "{}{:d}".format(listpathroot, int(maxidle))
+        listpath = f"{listpathroot}{maxidle:d}"
     else:
-        listpath = "{}{:s}".format(listpathroot, "-1")
-    url = "http://{}:{}{}".format(trending_server, trending_port, listpath)
+        listpath = f"{listpathroot}{-1:s}"
+    url = f"http://{trending_server}:{trending_port}{listpath}"
     logging.debug("url=%s", url)
 
     # creating HTTP response object from given url
@@ -447,7 +470,7 @@ def update_trending_channels_xml(site, tstart=None, tstop=None):
     """
     logging.debug("update_trending_channels_xml(%s, %s)", tstart, tstop)
     cachedir = "{}/.trender".format(os.environ.get("HOME"))
-    channel_file = "{}/.trender/{}_channels.xml".format(os.environ.get("HOME"), site)
+    channel_file = f"{os.environ.get("HOME")}/.trender/{site}_channels.xml"
     update = True
     # check channel_file exists, get mtime, update if need be
     if not os.path.exists(cachedir):  # make cachdir if not exist
@@ -587,7 +610,7 @@ def query_rest_server(ts1, ts2, data_url, idstr, nbins):
         options = {"t1": int(ts1), "t2": int(ts2), "flavor": "raw", "n": 1}
     else:  # CCS stat data
         options = {"t1": int(ts1), "t2": int(ts2), "flavor": "stat", "n": int(nbins)}
-    uri = "{}/data/?id={}".format(data_url, idstr)
+    uri = f"{data_url}/data/?id={idstr}"
     t_start = time.time()
     try:
         resp = s.get(uri, params=options)
@@ -597,7 +620,7 @@ def query_rest_server(ts1, ts2, data_url, idstr, nbins):
     if resp.status_code != 200:
         logging.error("invalid response %s from Trending Server", resp.status_code)
         return None
-    # logging.debug('URL=%s', resp.url)
+    logging.debug("URL=%s", resp.url)
     logging.debug("channels: %s", re.sub(r"(id=)?([0-9]+)&*", r"\2 ", idstr))
     logging.debug("dt=%.3f seconds", (time.time() - t_start))
     s.close()
@@ -805,7 +828,7 @@ def get_chanids_from_regexes(sources: list, channel_cache: str) -> tuple:
            fields dict in form {id:path}
            regexes list of regexes from sources that had matching channels
     """
-    logging.debug("dir()={}".format(dir()))
+    logging.debug(f"dir()={dir()}")
     global chid_dict
     oflds = dict()
     regexes = []
@@ -1034,7 +1057,8 @@ def get_xml_from_trending(
     responses = []
     server = tsite["server"]
     port = tsite["port"]
-    data_url = f"http://{server}:{port}/rest/data/dataserver"
+    path = tsite["rest_data_path"]
+    data_url = f"http://{server}:{port}{path}"
 
     for ival in intervals:  # only one interval per query allowed
         # if ival is too long, split into sequence of smaller intervals

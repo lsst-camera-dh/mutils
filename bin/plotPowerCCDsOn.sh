@@ -11,6 +11,9 @@ function usage {
   Options:
     -h (print help msg)
     -d <duration>
+    -s {save the plot}
+    -w {waitTime="yes"}
+    -l <site>
 EOM
 exit 1
 }
@@ -22,13 +25,14 @@ fi
 #-- process commandline options
 #
 duration=
-while getopts "swhd:" Option
+while getopts "swhd:l:" Option
 do
     case $Option in
         h  ) usage;;
         d  ) duration=$OPTARG;;
         s  ) savePlot="yes";;
         w  ) waitTime="yes";;
+        l  ) site=$OPTARG;;
         *  ) ${ECHO} "Unimplemented option chosen.";;   # Default.
     esac
 done
@@ -38,9 +42,14 @@ declare -a regexes
 regexes[0]=${1}'/[CO].*I'       # board currents
 regexes[1]=${1}'/[PSR].*[UL]$'  # clock levels
 regexes[2]=${1}'/S.*/.*V$'      # bias voltages
+regexes[3]=${1}'/S.*/I$'        # CCD currents
 
 if [ $duration"XXX" == "XXX" ] ; then
     declare -i duration=7
+fi
+
+if [ $site"XXX" == "XXX" ] ; then
+    declare site="summit"
 fi
 
 if [ $waitTime ] ; then
@@ -53,4 +62,4 @@ if [ $savePlot ] ; then
     sarg=" --save /tmp/"$(echo -n $1 | sed 's?/?_?g')"_powerCCDsOn.png"
 fi
 
-trender.py --lay 3x1 --out ${sarg} --start "${2}" --title "powerCCDsOn:${1}" --overlayreg --plot --dur ${duration} --fmt "o-" -- "${regexes[@]}"
+trender.py --site ${site} --dpi 300 --lay 4x1 --out ${sarg} --start "${2}" --title "powerCCDsOn:${1}" --overlayreg --plot --dur ${duration} --fmt "o-" -- "${regexes[@]}"

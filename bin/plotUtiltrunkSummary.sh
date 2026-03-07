@@ -69,9 +69,9 @@ if [ $timebins ] ; then
 fi
 
 if [ $doecho ] ; then
-    echo trender.py ${st} ${sv} --dur ${duration} ${timebins} --title "Utiltrunk Thermal Summary" --plot --layout 4x2 --outside --overlayregex -- "${regexes[@]}"
+    echo trender.py ${st} ${sv} --dur ${duration} ${timebins} --title "Utiltrunk Thermal Summary" --plot --layout 5x2 --outside --overlayregex -- "${regexes[@]}"
     exit
 fi
 
-trender.py --dpi 300 ${st} ${sv} --dur ${duration} ${timebins} --title "Utiltrunk Thermal Summary" --plot --layout 4x2 --outside --overlayregex -- "${regexes[@]}"
+trender.py --site  summit --dpi 300 ${st} ${sv} --dur ${duration} ${timebins} --title "Utiltrunk Thermal Summary" --plot --layout 5x2 --outside --overlayregex -- "${regexes[@]}"
 

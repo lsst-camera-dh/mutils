@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-""" trending data app: gets specified channels for requested time period
-"""
+"""trending data app: gets specified channels for requested time period"""
 import re
 import os
 import argparse
@@ -131,7 +130,9 @@ def parse_args():
         action="store_true",
         help="Print additional robust stats per channel",
     )
-    parser.add_argument("--nosort", action="store_true", help="do not sort text based outputs")
+    parser.add_argument(
+        "--nosort", action="store_true", help="do not sort text based outputs"
+    )
     #
     # Plotting specifications
     #
@@ -380,7 +381,17 @@ def trender():
     # print to stdout a text dump of the data, in time order per channel
     #
     if optlist.text:
-        printText(optlist.nosort, optlist.title, tmin, tmax, inttot, intcnt, tsite, chanspec, chandata)
+        printText(
+            optlist.nosort,
+            optlist.title,
+            tmin,
+            tmax,
+            inttot,
+            intcnt,
+            tsite,
+            chanspec,
+            chandata,
+        )
         sys.exit()
 
     # print some statistics for each channel
@@ -633,7 +644,10 @@ def trender():
                         if optlist.mjd is None:  # use dates
                             ax.xaxis.axis_date(tz=gettz(tsite["tz"]))
                             line = ax.plot(
-                                mds, y, fmt, label=mlabel,
+                                mds,
+                                y,
+                                fmt,
+                                label=mlabel,
                             )
                         else:
                             mjd = Time(mds, format="plot_date").mjd - float(mjdoff)
@@ -848,7 +862,9 @@ def printText(
     if nosort:
         key_list = chanspec.keys()
     else:
-        key_list = sorted( chanspec.keys(), key=lambda x: (chanspec[x]["units"], chanspec[x]["path"]))
+        key_list = sorted(
+            chanspec.keys(), key=lambda x: (chanspec[x]["units"], chanspec[x]["path"])
+        )
 
     for chid in key_list:
         path = chanspec[chid]["path"]
@@ -922,7 +938,9 @@ def printStats(
     if nosort:
         key_list = chanspec.keys()
     else:
-        key_list = sorted( chanspec.keys(), key=lambda x: (chanspec[x]["units"], chanspec[x]["path"]))
+        key_list = sorted(
+            chanspec.keys(), key=lambda x: (chanspec[x]["units"], chanspec[x]["path"])
+        )
 
     for chid in key_list:
         path = chanspec[chid]["path"]
@@ -950,7 +968,7 @@ def printStats(
         try:
             print(
                 f"{nelem:>6g} {avg:>9.4g} {med:>8.4g} {std:>8.4g} ",
-                f"{npmin:>8.3g} {npmax:>8.3g} {grad:>11.3g}",
+                f"{npmin:>8.4g} {npmax:>8.4g} {grad:>11.4g}",
                 end="",
             )
             if rstats:

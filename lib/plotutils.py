@@ -1,6 +1,7 @@
 """
 Common plot functions
 """
+
 import sys
 import re
 import logging
@@ -322,7 +323,7 @@ def line_plot(
         line1 = convolve(line1, kernel, boundary="extend")
 
     # slabel = "{}:[{}:{},{}:{}]".format(hduname, y[0], y[-1], x[0], x[-1])
-    slabel = f"[{y[0]}:{y[-1]}:{x[0]}:{x[-1]}]"
+    slabel = f"{hduname}:[{y[0]}:{y[-1]}:{x[0]}:{x[-1]}]"
     pax.plot(s, line1, drawstyle="{}".format(steps), label=slabel)
     pax.xaxis.set_tick_params(labelsize="x-small")
     pax.yaxis.set_tick_params(labelsize="x-small")

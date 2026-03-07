@@ -9,17 +9,19 @@ function usage {
   Options:
     -h (print help msg)
     -d <duration>  [default is 10m]
+    -l <site>
 EOM
 exit 1
 }
 #-- process commandline options
 #
 duration=
-while getopts "hd:" Option
+while getopts "hd:l:" Option
 do
   case $Option in
     h  ) usage;;
     d  ) duration=$OPTARG;;
+    l  ) site=$OPTARG;;
     *  ) ${ECHO} "Unimplemented option chosen.";;   # Default.
   esac
 done
@@ -33,6 +35,10 @@ if [ $2"XXX" == "XXX" ] ; then
     st="--stop "$(date --iso-8601=s)
 else
     st="--stop ${2}"
+fi
+
+if [ $site"XXX" == "XXX" ] ; then
+    declare site="summit"
 fi
 
 declare -a regexes
@@ -49,4 +55,4 @@ if [ $duration"XXX" == "XXX" ] ; then
       duration=10m
 fi
 
-trender.py --deb ${st} --dpi 200 --dur $duration --title "Raft Summary: ${1}" --plot --layout 4x2 --outside --overlayregex -- "${regexes[@]}"
+trender.py --site ${site} ${st} --dur $duration --title "Raft Summary: ${1}" --plot --layout 4x2 --outside --overlayregex -- "${regexes[@]}"

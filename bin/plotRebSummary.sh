@@ -10,18 +10,20 @@ function usage {
     -h (print help msg)
     -d <duration>  [default is 10m]
     -t (use time averaged data, good on long queries)
+    -l <site>
 EOM
 exit 1
 }
 #-- process commandline options
 #
 duration=
-while getopts "hd:t" Option
+while getopts "hd:tl:" Option
 do
   case $Option in
     h  ) usage;;
     d  ) duration=$OPTARG;;
     t  ) timebins="yes";;
+    l  ) site=$OPTARG;;
     *  ) ${ECHO} "Unimplemented option chosen.";;   # Default.
   esac
 done
@@ -31,6 +33,10 @@ if [ $# -gt 2 ] ; then
     usage
 elif [ $# -eq 0 ] ; then
     usage
+fi
+
+if [ $site"XXX" == "XXX" ] ; then
+    declare site="summit"
 fi
 
 if [ $2"XXX" == "XXX" ] ; then
@@ -56,5 +62,5 @@ if [ $timebins ] ; then
 fi
 
 #echo trender.py ${st} --dur $duration ${timebins} --title \"Reb Summary: ${1}\" --plot --layout 3x2 --outside --overlayregex -- \"${regexes[@]}\"
-trender.py ${st} --site summit --fmt 'o-' --dpi 200 --dur $duration ${timebins} --title "Reb Summary: ${1}" --plot --layout 5x1 --outside --overlayregex -- "${regexes[@]}"
+trender.py ${st} --site ${site} --fmt 'o-'  --dur $duration ${timebins} --title "Reb Summary: ${1}" --plot --layout 5x1 --outside --overlayregex -- "${regexes[@]}"
 

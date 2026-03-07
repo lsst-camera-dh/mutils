@@ -11,6 +11,7 @@ function usage {
     -h (print help msg)
     -d <duration>  [default is 10m]
     -t (use time averaged data, good on long queries)
+    -l <site>
     -p (only plot temps used in PID controls)
 EOM
 exit 1
@@ -18,13 +19,14 @@ exit 1
 #-- process commandline options
 #
 duration=
-while getopts "hd:tp" Option
+while getopts "hd:l:tp" Option
 do
   case $Option in
     h  ) usage;;
     d  ) duration=$OPTARG;;
     t  ) timebins="yes";;
     p  ) pidonly="yes";;
+    l  ) site=$OPTARG;;
     *  ) ${ECHO} "Unimplemented option chosen.";;   # Default.
   esac
 done
@@ -32,6 +34,10 @@ shift $((OPTIND - 1))
 
 if [ $# -gt 1 ] ; then
     usage
+fi
+
+if [ $site"XXX" == "XXX" ] ; then
+    declare site="summit"
 fi
 
 if [ $1"XXX" == "XXX" ] ; then
@@ -88,6 +94,6 @@ if [ $pidonly ] ; then
     badCCDrtds+=( ${nonPIDrtds[@]} )
 fi
 
-trender.py ${st} --dur $duration ${timebins} --title "Focal Plane CCD Temps" --plot --outside --reject "${badCCDrtds[@]}" --overlayregex -- "${regexes[@]}"
+trender.py --site ${site} ${st} --dur $duration ${timebins} --title "Focal Plane CCD Temps" --plot --outside --reject "${badCCDrtds[@]}" --overlayregex -- "${regexes[@]}"
 
 
