@@ -107,6 +107,14 @@ sites["summit-efd"]["port"] = 8080
 sites["summit-efd"]["tz"] = "UTC"
 sites["summit-efd"]["rest_data_path"] = "/efd-rest/data/dataserver"
 #
+sites["summit-old"] = dict()
+sites["summit-old"]["name"] = "summit-old"
+sites["summit-old"]["netregex"] = r"139\.229\..*"
+sites["summit-old"]["server"] = "lsstcam-mcm.cp.lsst.org"
+sites["summit-old"]["port"] = 8080
+sites["summit-old"]["tz"] = "UTC"
+sites["summit-old"]["rest_data_path"] = "/rest/data/dataserver"
+#
 sites["comcam"] = dict()
 sites["comcam"]["name"] = "comcam"
 sites["comcam"]["netregex"] = r"139\.229\.150\.[0-9]"
