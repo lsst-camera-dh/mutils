@@ -94,7 +94,7 @@ sites["ats-efd"]["rest_data_path"] = "/efd-rest/data/dataserver"
 sites["summit"] = dict()
 sites["summit"]["name"] = "summit"
 sites["summit"]["netregex"] = r"139\.229\..*"
-sites["summit"]["server"] = "lsstcam-mcm.cp.lsst.org"
+sites["summit"]["server"] = "lsstcam-tomcat.cp.lsst.org"
 sites["summit"]["port"] = 8080
 sites["summit"]["tz"] = "UTC"
 sites["summit"]["rest_data_path"] = "/rest/data/dataserver"
@@ -102,7 +102,7 @@ sites["summit"]["rest_data_path"] = "/rest/data/dataserver"
 sites["summit-efd"] = dict()
 sites["summit-efd"]["name"] = "summit-efd"
 sites["summit-efd"]["netregex"] = r"139\.229\..*"
-sites["summit-efd"]["server"] = "lsstcam-mcm.cp.lsst.org"
+sites["summit-efd"]["server"] = "lsstcam-tomcat.cp.lsst.org"
 sites["summit-efd"]["port"] = 8080
 sites["summit-efd"]["tz"] = "UTC"
 sites["summit-efd"]["rest_data_path"] = "/efd-rest/data/dataserver"
@@ -470,7 +470,7 @@ def update_trending_channels_xml(site, tstart=None, tstop=None):
     """
     logging.debug("update_trending_channels_xml(%s, %s)", tstart, tstop)
     cachedir = "{}/.trender".format(os.environ.get("HOME"))
-    channel_file = f"{os.environ.get("HOME")}/.trender/{site}_channels.xml"
+    channel_file = f'{os.environ.get("HOME")}/.trender/{site}_channels.xml'
     update = True
     # check channel_file exists, get mtime, update if need be
     if not os.path.exists(cachedir):  # make cachdir if not exist
